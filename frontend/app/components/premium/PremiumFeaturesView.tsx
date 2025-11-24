@@ -42,7 +42,7 @@ export default function PremiumFeaturesView({ onAccountUpdated }: PremiumFeature
 
   // Determine if user has premium subscription
   const isPremium = membership?.status === 'ACTIVE'
-  const maxAllowedDepth = isPremium ? 60 : 10
+  const maxAllowedDepth = 60
   const subscriptionEndDate = membership?.currentPeriodEnd
 
   useEffect(() => {
@@ -85,11 +85,6 @@ export default function PremiumFeaturesView({ onAccountUpdated }: PremiumFeature
         return
       }
 
-      // Check premium requirement - show modal instead of direct redirect
-      if (samplingDepth > 10 && !isPremium) {
-        setShowPremiumModal(true)
-        return
-      }
 
       setIsSaving(true)
       try {
@@ -230,9 +225,6 @@ export default function PremiumFeaturesView({ onAccountUpdated }: PremiumFeature
                           className="flex-1 h-7 text-xs"
                         >
                           {depth}
-                          {depth > 10 && !isPremium && (
-                            <Lock className="w-3 h-3 ml-1" />
-                          )}
                         </Button>
                       ))}
                     </div>
