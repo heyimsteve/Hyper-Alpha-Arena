@@ -78,14 +78,6 @@ export default function PremiumFeaturesView({ onAccountUpdated }: PremiumFeature
 
   const handleSaveConfiguration = async (section: string) => {
     if (section === 'sampling-pool') {
-      // Check if user is logged in
-      if (!user) {
-        toast.error('Please log in to save configuration')
-        // Could add login redirect logic here
-        return
-      }
-
-
       setIsSaving(true)
       try {
         const response = await fetch(`/api/config/global-sampling`, {
