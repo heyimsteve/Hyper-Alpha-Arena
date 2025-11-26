@@ -264,8 +264,17 @@ export default function AlphaArenaFeed({
         wallet_address: walletAddress,
       })
       const newTrades = tradeRes.trades || []
-      setTrades(newTrades)
-      updateData(cacheKey, { trades: newTrades })
+      
+      // Merge new trades with existing ones, removing duplicates
+      setTrades((prev) => {
+        const existingIds = new Set(prev.map(trade => trade.trade_id))
+        const uniqueNewTrades = newTrades.filter(trade => !existingIds.has(trade.trade_id))
+        const merged = [...uniqueNewTrades, ...prev]
+        // Keep only the latest 100 entries
+        const limited = merged.slice(0, 100)
+        updateData(cacheKey, { trades: limited })
+        return limited
+      })
 
       // Extract metadata from trades
       if (tradeRes.accounts) {
@@ -298,8 +307,17 @@ export default function AlphaArenaFeed({
         wallet_address: walletAddress,
       })
       const newModelChat = chatRes.entries || []
-      setModelChat(newModelChat)
-      updateData(cacheKey, { modelChat: newModelChat })
+      
+      // Merge new entries with existing ones, removing duplicates
+      setModelChat((prev) => {
+        const existingIds = new Set(prev.map(entry => entry.id))
+        const uniqueNewEntries = newModelChat.filter(entry => !existingIds.has(entry.id))
+        const merged = [...uniqueNewEntries, ...prev]
+        // Keep only the latest 100 entries
+        const limited = merged.slice(0, 100)
+        updateData(cacheKey, { modelChat: limited })
+        return limited
+      })
 
       // Extract metadata from modelchat
       if (chatRes.entries && chatRes.entries.length > 0) {
@@ -607,9 +625,9 @@ export default function AlphaArenaFeed({
                             </span>
                           </div>
                           <div>
-                            <span className="block text-[10px] uppercase tracking-wide">Commission</span>
-                            <span className="font-medium text-foreground">
-                              <FlipNumber value={trade.commission} prefix="$" decimals={2} />
+                            <span className="block text-[10px] uppercase tracking-wide">P&L</span>
+                            <span className={`font-medium ${trade.pnl !== undefined && trade.pnl !== null ? (trade.pnl >= 0 ? 'text-emerald-600' : 'text-red-600') : 'text-foreground'}`}>
+                              <FlipNumber value={trade.pnl ?? trade.commission ?? 0} prefix="$" decimals={2} />
                             </span>
                           </div>
                         </div>

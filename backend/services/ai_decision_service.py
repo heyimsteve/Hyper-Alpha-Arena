@@ -1358,29 +1358,33 @@ def save_ai_decision(
         )
 
         # Broadcast AI decision update via WebSocket
-        import asyncio
-        from api.ws import broadcast_model_chat_update
-
         try:
-            asyncio.create_task(broadcast_model_chat_update({
-                "id": decision_log.id,
-                "account_id": account.id,
-                "account_name": account.name,
-                "model": account.model,
-                "decision_time": decision_log.decision_time.isoformat() if hasattr(decision_log.decision_time, 'isoformat') else str(decision_log.decision_time),
-                "operation": decision_log.operation.upper() if decision_log.operation else "HOLD",
-                "symbol": decision_log.symbol,
-                "reason": decision_log.reason,
-                "prev_portion": float(decision_log.prev_portion),
-                "target_portion": float(decision_log.target_portion),
-                "total_balance": float(decision_log.total_balance),
-                "executed": decision_log.executed == "true",
-                "order_id": decision_log.order_id,
-                "prompt_snapshot": decision_log.prompt_snapshot,
-                "reasoning_snapshot": decision_log.reasoning_snapshot,
-                "decision_snapshot": decision_log.decision_snapshot,
-                "wallet_address": decision_log.wallet_address,
-            }))
+            from api.ws import manager, broadcast_model_chat_update
+            
+            # Check if there are active WebSocket connections
+            if not manager.has_connections():
+                logger.debug(f"No active WebSocket connections, skipping broadcast for account {account.id}")
+            else:
+                logger.info(f"Broadcasting AI decision for account {account.id} ({account.name}): {operation} {symbol}")
+                manager.schedule_task(broadcast_model_chat_update({
+                    "id": decision_log.id,
+                    "account_id": account.id,
+                    "account_name": account.name,
+                    "model": account.model,
+                    "decision_time": decision_log.decision_time.isoformat() if hasattr(decision_log.decision_time, 'isoformat') else str(decision_log.decision_time),
+                    "operation": decision_log.operation.upper() if decision_log.operation else "HOLD",
+                    "symbol": decision_log.symbol,
+                    "reason": decision_log.reason,
+                    "prev_portion": float(decision_log.prev_portion),
+                    "target_portion": float(decision_log.target_portion),
+                    "total_balance": float(decision_log.total_balance),
+                    "executed": decision_log.executed == "true",
+                    "order_id": decision_log.order_id,
+                    "prompt_snapshot": decision_log.prompt_snapshot,
+                    "reasoning_snapshot": decision_log.reasoning_snapshot,
+                    "decision_snapshot": decision_log.decision_snapshot,
+                    "wallet_address": decision_log.wallet_address,
+                }))
         except Exception as broadcast_err:
             # Don't fail the save operation if broadcast fails
             logger.warning(f"Failed to broadcast AI decision update: {broadcast_err}")

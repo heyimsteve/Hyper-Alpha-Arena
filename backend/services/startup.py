@@ -94,6 +94,11 @@ def initialize_services():
         asyncio.create_task(realtime_collector.start())
         logger.info("K-line realtime collection service started (1-minute interval)")
 
+        # Start price snapshot logger (every 60 seconds)
+        from services.system_logger import price_snapshot_logger
+        price_snapshot_logger.start()
+        logger.info("Price snapshot logger started (60-second interval)")
+
         logger.info("All services initialized successfully")
 
     except Exception as e:
@@ -116,6 +121,10 @@ def shutdown_services():
 
         # Stop K-line realtime collector
         asyncio.create_task(realtime_collector.stop())
+
+        # Stop price snapshot logger
+        from services.system_logger import price_snapshot_logger
+        price_snapshot_logger.stop()
 
         stop_scheduler()
         logger.info("All services have been shut down")

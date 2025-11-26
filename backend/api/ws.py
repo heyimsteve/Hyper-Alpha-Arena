@@ -172,7 +172,7 @@ async def broadcast_position_update(account_id: int, positions_data: list):
 
 
 async def broadcast_model_chat_update(decision_data: dict):
-    """Broadcast AI decision update to specific account
+    """Broadcast AI decision update to all connected clients (not just specific account)
 
     Args:
         decision_data: Dictionary containing AI decision information including account_id
@@ -183,12 +183,28 @@ async def broadcast_model_chat_update(decision_data: dict):
         return
 
     try:
-        await manager.send_to_account(account_id, {
+        # Log broadcast attempt for debugging
+        logging.info(f"Broadcasting model chat update for account {account_id}: {decision_data.get('operation')} {decision_data.get('symbol')}")
+        
+        # Check if there are any active connections
+        if not manager.has_connections():
+            logging.warning(f"No active WebSocket connections, skipping broadcast")
+            return
+        
+        # Broadcast to ALL connected clients (not just the specific account)
+        # This allows users viewing any account or "All Traders" to see all AI decisions
+        num_accounts = len(manager.active_connections)
+        total_connections = sum(len(ws_set) for ws_set in manager.active_connections.values())
+        logging.info(f"Broadcasting model chat update to all connections: {num_accounts} accounts, {total_connections} WebSocket(s)")
+        
+        await manager.broadcast_to_all({
             "type": "model_chat_update",
             "decision": decision_data
         })
+        
+        logging.info(f"Successfully broadcast model chat update to all connections")
     except Exception as e:
-        logging.error(f"Failed to broadcast model chat update: {e}")
+        logging.error(f"Failed to broadcast model chat update: {e}", exc_info=True)
 
 
 def get_all_asset_curves_data(
@@ -407,8 +423,8 @@ async def _send_hyperliquid_snapshot(db: Session, account_id: int, environment: 
         logging.debug(f"No {environment} wallet configured for account {account.name} (ID: {account_id})")
         return
 
-    cached_state = get_cached_account_state(account_id, max_age_seconds=HYPERLIQUID_SNAPSHOT_CACHE_TTL)
-    cached_positions = get_cached_positions(account_id, max_age_seconds=HYPERLIQUID_SNAPSHOT_CACHE_TTL)
+    cached_state = get_cached_account_state(account_id, environment=environment, max_age_seconds=HYPERLIQUID_SNAPSHOT_CACHE_TTL)
+    cached_positions = get_cached_positions(account_id, environment=environment, max_age_seconds=HYPERLIQUID_SNAPSHOT_CACHE_TTL)
     account_state = cached_state["data"] if cached_state else None
     positions_data = cached_positions["data"] if cached_positions else None
     wallet_address = None

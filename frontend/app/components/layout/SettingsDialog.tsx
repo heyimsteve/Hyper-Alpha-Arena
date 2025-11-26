@@ -15,6 +15,7 @@ import {
   createAccount as createAccount,
   updateAccount as updateAccount,
   testLLMConnection,
+  deleteTradingAccount,
   type TradingAccount,
   type TradingAccountCreate,
   type TradingAccountUpdate
@@ -397,6 +398,26 @@ export default function SettingsDialog({ open, onOpenChange, onAccountUpdated, e
                           </Button>
                           <Button onClick={cancelEdit} variant="outline" size="sm" disabled={loading || testing}>
                             Cancel
+                          </Button>
+                          <Button 
+                            onClick={async () => {
+                              if (confirm(`Are you sure you want to delete ${account.name}?`)) {
+                                try {
+                                  const sessionToken = 'default-session'
+                                  await deleteTradingAccount(account.id, sessionToken)
+                                  toast.success(`${account.name} deleted successfully`)
+                                  loadAccounts()
+                                  onAccountUpdated?.()
+                                } catch (err) {
+                                  toast.error(err instanceof Error ? err.message : 'Failed to delete account')
+                                }
+                              }
+                            }} 
+                            variant="destructive" 
+                            size="sm" 
+                            disabled={loading || testing}
+                          >
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
                       </div>

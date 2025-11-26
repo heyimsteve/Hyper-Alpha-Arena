@@ -293,10 +293,17 @@ class PriceSnapshotLogger:
         """获取并记录所有币种的当前价格"""
         try:
             from services.price_cache import get_cached_price
-            from services.trading_commands import AI_TRADING_SYMBOLS
+            from services.hyperliquid_symbol_service import get_selected_symbols
+
+            # Use watchlist symbols instead of hardcoded AI_TRADING_SYMBOLS
+            watchlist_symbols = get_selected_symbols()
+            if not watchlist_symbols:
+                # Fallback to default symbols if watchlist is empty
+                from services.trading_commands import AI_TRADING_SYMBOLS
+                watchlist_symbols = AI_TRADING_SYMBOLS
 
             prices_info = []
-            for symbol in AI_TRADING_SYMBOLS:
+            for symbol in watchlist_symbols:
                 price = get_cached_price(symbol, "CRYPTO")
                 if price is not None:
                     prices_info.append(f"{symbol}=${price:.4f}")
@@ -308,7 +315,7 @@ class PriceSnapshotLogger:
                     level="INFO",
                     category="price_update",
                     message=message,
-                    details={"prices": self._last_prices.copy(), "symbols": AI_TRADING_SYMBOLS}
+                    details={"prices": self._last_prices.copy(), "symbols": watchlist_symbols}
                 )
         except Exception as e:
             logging.error(f"Failed to take price snapshot: {e}")
