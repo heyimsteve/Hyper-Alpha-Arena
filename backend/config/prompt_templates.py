@@ -138,6 +138,67 @@ FIELD TYPE REQUIREMENTS:
 - trading_strategy: string providing deeper context, including risk management and exit logic
 """
 
+# K-line AI Analysis prompt template for chart insights
+KLINE_ANALYSIS_PROMPT_TEMPLATE = """You are an expert technical analyst and trading advisor. Analyze the following K-line chart data and technical indicators to provide actionable trading insights.
+
+=== ANALYSIS CONTEXT ===
+Symbol: {symbol}
+Timeframe: {period}
+Analysis Time (UTC): {current_time_utc}
+
+=== CURRENT MARKET DATA ===
+Current Price: ${current_price}
+24h Change: {change_24h}%
+24h Volume: ${volume_24h}
+Open Interest: ${open_interest}
+Funding Rate: {funding_rate}%
+
+=== K-LINE DATA (Recent {kline_count} candles) ===
+{klines_summary}
+
+=== TECHNICAL INDICATORS ===
+{indicators_summary}
+
+=== POSITIONS ===
+{positions_summary}
+
+=== USER QUESTION (if provided) ===
+{user_message}
+
+=== ANALYSIS REQUIREMENTS ===
+Please provide a comprehensive analysis in **Markdown format** with the following sections:
+
+## 📊 Trend Analysis
+- Identify the current trend direction (bullish/bearish/sideways)
+- Explain the trend strength based on indicators
+- Note any trend reversal signals
+
+## 🎯 Key Price Levels
+- Support levels (where price may bounce)
+- Resistance levels (where price may face selling pressure)
+- Critical breakout/breakdown levels to watch
+
+## 📈 Technical Signals
+- Interpret the current indicator readings (MA, RSI, MACD, etc.)
+- Identify any bullish or bearish signals
+- Note divergences or confirmations between indicators
+
+## 💡 Trading Suggestions
+- Recommended action: Long / Short / Wait
+- Entry zone (if applicable)
+- Stop-loss level
+- Take-profit targets
+
+## ⚠️ Risk Warnings
+- Current volatility assessment
+- Key risks to monitor
+- Events or levels that would invalidate the analysis
+
+{additional_instructions}
+
+**Important**: Base your analysis solely on the provided data. Be objective and include both bullish and bearish scenarios where applicable.
+"""
+
 # Hyperliquid-specific prompt template for perpetual contract trading
 HYPERLIQUID_PROMPT_TEMPLATE = """=== SESSION CONTEXT ===
 Runtime: {runtime_minutes} minutes since trading started
@@ -163,6 +224,15 @@ Account Leverage Settings:
 === OPEN POSITIONS ===
 {positions_detail}
 
+=== RECENT TRADING HISTORY ===
+Recent closed trades (last 5 positions):
+{recent_trades_summary}
+
+⚠️ IMPORTANT: Review your recent trading patterns to avoid flip-flop behavior (rapid position reversals).
+- If you recently closed a position, ensure there's a clear reason to re-enter
+- Consider the holding duration of recent trades - are you exiting too quickly?
+- Maintain consistency with your stated trading strategy and timeframe
+
 === SYMBOLS IN PLAY ===
 Monitoring {selected_symbols_count} Hyperliquid contracts (multi-coin decisioning is the default):
 {selected_symbols_detail}
@@ -176,6 +246,41 @@ Current prices (USD):
 
 === LATEST CRYPTO NEWS ===
 {news_section}
+
+=== TECHNICAL ANALYSIS (K-line & Indicators) ===
+Use K-line data, technical indicators, and market data to inform your decisions. All variables below are optional and will be populated if included in the template.
+
+**Market Data Variables** (real-time market information):
+- {{BTC_market_data}} - Current price, 24h change, volume, open interest, funding rate for BTC
+- {{ETH_market_data}} - Market data for ETH
+- {{SOL_market_data}} - Market data for SOL
+
+**K-line Variables** (historical price action):
+- {{BTC_klines_15m}}(200) - Last 200 candles of BTC 15-minute K-line data
+- {{ETH_klines_1h}}(100) - Last 100 candles of ETH 1-hour K-line data
+
+**Technical Indicator Variables** (must match K-line period):
+- {{BTC_RSI14_15m}} - RSI(14) indicator for BTC on 15-minute chart
+- {{BTC_MACD_15m}} - MACD indicator for BTC on 15-minute chart
+- {{BTC_MA_15m}} - Moving averages (MA5, MA10, MA20) for BTC
+- {{BTC_EMA_15m}} - Exponential moving averages (EMA20, EMA50) for BTC
+- {{BTC_BOLL_15m}} - Bollinger Bands for BTC
+- {{BTC_ATR14_15m}} - Average True Range for BTC
+
+Supported periods: 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 8h, 12h, 1d, 3d, 1w, 1M
+Supported indicators: RSI14, MACD, MA, EMA, BOLL, ATR14
+
+{BTC_market_data}
+{BTC_klines_15m}
+{BTC_RSI14_15m}
+{BTC_MACD_15m}
+{BTC_MA_15m}
+
+{ETH_market_data}
+{ETH_klines_15m}
+{ETH_RSI14_15m}
+{ETH_MACD_15m}
+{ETH_MA_15m}
 
 === HYPERLIQUID PRICE LIMITS (CRITICAL) ===
 ⚠️ ALL orders must have prices within ±1% of oracle price or will be rejected.
