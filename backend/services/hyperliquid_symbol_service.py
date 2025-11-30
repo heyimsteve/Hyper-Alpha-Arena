@@ -349,17 +349,9 @@ def _has_active_paper_accounts() -> bool:
 
 def build_market_stream_symbols() -> List[str]:
     """Compute the combined set of symbols for the shared market data stream."""
-    paper_symbols: List[str] = []
-    if _has_active_paper_accounts():
-        try:
-            from services.trading_commands import AI_TRADING_SYMBOLS
-        except Exception:
-            paper_symbols = [entry["symbol"] for entry in DEFAULT_SYMBOLS]
-        else:
-            paper_symbols = list(AI_TRADING_SYMBOLS)
-
-    combined = sorted(set(paper_symbols + get_selected_symbols()))
-    return combined
+    # Always use the Hyperliquid watchlist symbols for market data streaming
+    # No need to separate paper vs Hyperliquid - watchlist applies to all
+    return get_selected_symbols()
 
 
 def refresh_market_stream_symbols() -> List[str]:

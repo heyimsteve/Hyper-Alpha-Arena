@@ -166,8 +166,14 @@ def place_ai_driven_crypto_order(max_ratio: float = 0.2, account_ids: Optional[I
                     logger.debug("No matching accounts for provided IDs: %s", account_ids)
                     return
 
-        # Get latest market prices once for all accounts
-        prices = _get_market_prices(AI_TRADING_SYMBOLS)
+        # Get latest market prices using watchlist symbols instead of hardcoded list
+        from services.hyperliquid_symbol_service import get_selected_symbols
+        watchlist_symbols = get_selected_symbols()
+        if not watchlist_symbols:
+            # Fallback to AI_TRADING_SYMBOLS if watchlist is empty
+            watchlist_symbols = AI_TRADING_SYMBOLS
+        
+        prices = _get_market_prices(watchlist_symbols)
         if not prices:
             logger.warning("Failed to fetch market prices, skipping AI trading")
             return

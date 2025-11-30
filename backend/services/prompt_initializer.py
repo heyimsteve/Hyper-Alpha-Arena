@@ -3,7 +3,7 @@ from __future__ import annotations
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
-from config.prompt_templates import DEFAULT_PROMPT_TEMPLATE, PRO_PROMPT_TEMPLATE, HYPERLIQUID_PROMPT_TEMPLATE
+from config.prompt_templates import DEFAULT_PROMPT_TEMPLATE, PRO_PROMPT_TEMPLATE, HYPERLIQUID_PROMPT_TEMPLATE, HYPERLIQUID2_PROMPT_TEMPLATE, HYPERLIQUID3_PROMPT_TEMPLATE
 from repositories import prompt_repo
 
 SYSTEM_USER = "system"
@@ -36,6 +36,18 @@ def seed_prompt_templates(db: Session) -> None:
             "name": "Hyperliquid Prompt",
             "description": "Specialized prompt for Hyperliquid perpetual contract trading with detailed margin and leverage information.",
             "template_text": HYPERLIQUID_PROMPT_TEMPLATE,
+        },
+        {
+            "key": "hyperliquid2",
+            "name": "Hyperliquid 2 Prompt",
+            "description": "Specialized prompt for Hyperliquid perpetual contract trading with detailed margin and leverage information.",
+            "template_text": HYPERLIQUID2_PROMPT_TEMPLATE,
+        },
+        {
+            "key": "hyperliquid3",
+            "name": "Hyperliquid 3 Prompt",
+            "description": "Specialized prompt for Hyperliquid perpetual contract trading with detailed margin and leverage information.",
+            "template_text": HYPERLIQUID3_PROMPT_TEMPLATE,
         },
     ]
 
