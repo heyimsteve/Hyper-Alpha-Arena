@@ -21,10 +21,18 @@ def get_encryption_key() -> bytes:
     Raises:
         ValueError: If HYPERLIQUID_ENCRYPTION_KEY not found
     """
-    # Try to read from Docker persistent file first
+    # Try Docker path first
     key_file = '/app/data/.encryption_key'
     if os.path.exists(key_file):
         with open(key_file, 'r') as f:
+            key = f.read().strip()
+            if key:
+                return key.encode()
+    
+    # Try local development path (relative to backend/)
+    local_key_file = os.path.join(os.path.dirname(__file__), '../../data/.encryption_key')
+    if os.path.exists(local_key_file):
+        with open(local_key_file, 'r') as f:
             key = f.read().strip()
             if key:
                 return key.encode()

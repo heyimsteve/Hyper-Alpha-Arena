@@ -147,6 +147,7 @@ class StrategyManager:
                 rows = (
                     db.query(AccountStrategyConfig, Account)
                     .join(Account, AccountStrategyConfig.account_id == Account.id)
+                    .filter(Account.is_active == "true")  # Only load active accounts
                     .all()
                 )
 
@@ -163,7 +164,7 @@ class StrategyManager:
 
                     # DEBUG: Print loaded strategy configuration
                     print(
-                        f"[DEBUG] Loaded strategy for account {strategy.account_id} ({account.name}): "
+                        f"[HyperliquidStrategy DEBUG] Loaded strategy for account {strategy.account_id} ({account.name}): "
                         f"interval={strategy.trigger_interval}s ({strategy.trigger_interval/60:.1f}min), "
                         f"threshold={strategy.price_threshold}%, enabled={strategy.enabled}, "
                         f"last_trigger={state.last_trigger_at}"

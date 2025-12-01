@@ -84,14 +84,30 @@ def initialize_services():
         logger.info("Asset curve broadcast task started (60-second interval)")
 
         # Start Hyperliquid account snapshot service (every 30 seconds)
+        # Note: This runs in background thread, so we can't use asyncio.create_task
         from services.hyperliquid_snapshot_service import hyperliquid_snapshot_service
         import asyncio
-        asyncio.create_task(hyperliquid_snapshot_service.start())
+        
+        # Create a new event loop for this thread and start the service
+        def run_snapshot_service():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(hyperliquid_snapshot_service.start())
+        
+        snapshot_thread = threading.Thread(target=run_snapshot_service, daemon=True)
+        snapshot_thread.start()
         logger.info("Hyperliquid snapshot service started (30-second interval)")
 
         # Start K-line realtime collection service
         from services.kline_realtime_collector import realtime_collector
-        asyncio.create_task(realtime_collector.start())
+        
+        def run_kline_collector():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(realtime_collector.start())
+        
+        kline_thread = threading.Thread(target=run_kline_collector, daemon=True)
+        kline_thread.start()
         logger.info("K-line realtime collection service started (1-minute interval)")
 
         # Start price snapshot logger (every 60 seconds)

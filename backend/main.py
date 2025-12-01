@@ -169,158 +169,174 @@ def on_startup():
     frontend_watcher_thread.start()
     print("Frontend file watcher started")
 
-    # Create tables
-    Base.metadata.create_all(bind=engine)
-    # Seed trading configs if empty
-    db: Session = SessionLocal()
-    try:
-        # Ensure AI decision log table has snapshot columns (backfill on existing installs)
+    # Do ONLY critical startup tasks synchronously
+    # Everything else runs in background thread
+    
+    def background_initialization():
+        """Run non-critical initialization in background"""
         try:
-            # PostgreSQL-compatible column check
-            result = db.execute(text("""
-                SELECT column_name FROM information_schema.columns
-                WHERE table_name = 'ai_decision_logs'
-            """))
-            columns = {row[0] for row in result}
+            # Create tables
+            Base.metadata.create_all(bind=engine)
+            # Seed trading configs if empty
+            db: Session = SessionLocal()
+            try:
+                # Ensure AI decision log table has snapshot columns (backfill on existing installs)
+                try:
+                    # PostgreSQL-compatible column check
+                    result = db.execute(text("""
+                        SELECT column_name FROM information_schema.columns
+                        WHERE table_name = 'ai_decision_logs'
+                    """))
+                    columns = {row[0] for row in result}
 
-            if "prompt_snapshot" not in columns:
-                db.execute(text("ALTER TABLE ai_decision_logs ADD COLUMN prompt_snapshot TEXT"))
-            if "reasoning_snapshot" not in columns:
-                db.execute(text("ALTER TABLE ai_decision_logs ADD COLUMN reasoning_snapshot TEXT"))
-            if "decision_snapshot" not in columns:
-                db.execute(text("ALTER TABLE ai_decision_logs ADD COLUMN decision_snapshot TEXT"))
-            db.commit()
-        except Exception as migration_err:
-            db.rollback()
-            print(f"[startup] Failed to ensure AI decision log snapshot columns: {migration_err}")
+                    if "prompt_snapshot" not in columns:
+                        db.execute(text("ALTER TABLE ai_decision_logs ADD COLUMN prompt_snapshot TEXT"))
+                    if "reasoning_snapshot" not in columns:
+                        db.execute(text("ALTER TABLE ai_decision_logs ADD COLUMN reasoning_snapshot TEXT"))
+                    if "decision_snapshot" not in columns:
+                        db.execute(text("ALTER TABLE ai_decision_logs ADD COLUMN decision_snapshot TEXT"))
+                    db.commit()
+                except Exception as migration_err:
+                    db.rollback()
+                    print(f"[startup] Failed to ensure AI decision log snapshot columns: {migration_err}")
 
-        # Ensure global_sampling_configs has sampling_depth column (for existing installs)
-        try:
-            result = db.execute(text("""
-                SELECT column_name FROM information_schema.columns
-                WHERE table_name = 'global_sampling_configs'
-            """))
-            columns = {row[0] for row in result}
+                # Ensure global_sampling_configs has sampling_depth column (for existing installs)
+                try:
+                    result = db.execute(text("""
+                        SELECT column_name FROM information_schema.columns
+                        WHERE table_name = 'global_sampling_configs'
+                    """))
+                    columns = {row[0] for row in result}
 
-            if "sampling_depth" not in columns:
-                db.execute(text("ALTER TABLE global_sampling_configs ADD COLUMN sampling_depth INTEGER NOT NULL DEFAULT 10"))
-                print("[startup] Added sampling_depth column to global_sampling_configs")
-            db.commit()
-        except Exception as migration_err:
-            db.rollback()
-            print(f"[startup] Failed to ensure global_sampling_configs.sampling_depth: {migration_err}")
+                    if "sampling_depth" not in columns:
+                        db.execute(text("ALTER TABLE global_sampling_configs ADD COLUMN sampling_depth INTEGER NOT NULL DEFAULT 10"))
+                        print("[startup] Added sampling_depth column to global_sampling_configs")
+                    db.commit()
+                except Exception as migration_err:
+                    db.rollback()
+                    print(f"[startup] Failed to ensure global_sampling_configs.sampling_depth: {migration_err}")
 
-        if db.query(TradingConfig).count() == 0:
-            for cfg in DEFAULT_TRADING_CONFIGS.values():
-                db.add(
-                    TradingConfig(
-                        version="v1",
-                        market=cfg.market,
-                        min_commission=cfg.min_commission,
-                        commission_rate=cfg.commission_rate,
-                        exchange_rate=cfg.exchange_rate,
-                        min_order_quantity=cfg.min_order_quantity,
-                        lot_size=cfg.lot_size,
-                    )
-                )
-            db.commit()
-        # Ensure only default user and its account exist
-        # Delete all non-default users and their accounts
-        from database.models import Position, Order, Trade
-        
-        non_default_users = db.query(User).filter(User.username != "default").all()
-        for user in non_default_users:
-            # Get user's account IDs
-            account_ids = [acc.id for acc in db.query(Account).filter(Account.user_id == user.id).all()]
-            
-            if account_ids:
-                # Delete trades, orders, positions associated with these accounts
-                db.query(Trade).filter(Trade.account_id.in_(account_ids)).delete(synchronize_session=False)
-                db.query(Order).filter(Order.account_id.in_(account_ids)).delete(synchronize_session=False)
-                db.query(Position).filter(Position.account_id.in_(account_ids)).delete(synchronize_session=False)
+                if db.query(TradingConfig).count() == 0:
+                    for cfg in DEFAULT_TRADING_CONFIGS.values():
+                        db.add(
+                            TradingConfig(
+                                version="v1",
+                                market=cfg.market,
+                                min_commission=cfg.min_commission,
+                                commission_rate=cfg.commission_rate,
+                                exchange_rate=cfg.exchange_rate,
+                                min_order_quantity=cfg.min_order_quantity,
+                                lot_size=cfg.lot_size,
+                            )
+                        )
+                    db.commit()
+                # Ensure only default user and its account exist
+                # Delete all non-default users and their accounts
+                from database.models import Position, Order, Trade
                 
-                # Now delete the accounts
-                db.query(Account).filter(Account.user_id == user.id).delete(synchronize_session=False)
+                non_default_users = db.query(User).filter(User.username != "default").all()
+                for user in non_default_users:
+                    # Get user's account IDs
+                    account_ids = [acc.id for acc in db.query(Account).filter(Account.user_id == user.id).all()]
+                    
+                    if account_ids:
+                        # Delete trades, orders, positions associated with these accounts
+                        db.query(Trade).filter(Trade.account_id.in_(account_ids)).delete(synchronize_session=False)
+                        db.query(Order).filter(Order.account_id.in_(account_ids)).delete(synchronize_session=False)
+                        db.query(Position).filter(Position.account_id.in_(account_ids)).delete(synchronize_session=False)
+                        
+                        # Now delete the accounts
+                        db.query(Account).filter(Account.user_id == user.id).delete(synchronize_session=False)
+                    
+                    # Delete the user
+                    db.delete(user)
+                
+                db.commit()
+                
+                # Ensure default user exists
+                default_user = db.query(User).filter(User.username == "default").first()
+                if not default_user:
+                    default_user = User(
+                        username="default",
+                        email=None,
+                        password_hash=None,
+                        is_active="true"
+                    )
+                    db.add(default_user)
+                    db.commit()
+                    db.refresh(default_user)
+                
+                # No default account creation - users must create their own accounts
+
+            finally:
+                db.close()
             
-            # Delete the user
-            db.delete(user)
-        
-        db.commit()
-        
-        # Ensure default user exists
-        default_user = db.query(User).filter(User.username == "default").first()
-        if not default_user:
-            default_user = User(
-                username="default",
-                email=None,
-                password_hash=None,
-                is_active="true"
-            )
-            db.add(default_user)
-            db.commit()
-            db.refresh(default_user)
-        
-        # No default account creation - users must create their own accounts
+            # Ensure prompt templates exist
+            db = SessionLocal()
+            try:
+                from services.prompt_initializer import seed_prompt_templates
+                seed_prompt_templates(db)
+            finally:
+                db.close()
+            
+            # Initialize system log collector
+            from services.system_logger import setup_system_logger
+            setup_system_logger()
 
-    finally:
-        db.close()
+            # Load and apply global sampling configuration (use watchlist if available)
+            try:
+                from database.models import GlobalSamplingConfig
+                from services.sampling_pool import sampling_pool
+                from services.trading_commands import AI_TRADING_SYMBOLS
+                from services.hyperliquid_symbol_service import get_selected_symbols as get_hyperliquid_selected_symbols
+
+                db = SessionLocal()
+                try:
+                    symbols = get_hyperliquid_selected_symbols() or AI_TRADING_SYMBOLS
+                    global_config = db.query(GlobalSamplingConfig).first()
+                    if global_config and global_config.sampling_depth:
+                        for symbol in symbols:
+                            sampling_pool.set_max_samples(symbol, global_config.sampling_depth)
+                        print(f"✓ Sampling pool configured: depth={global_config.sampling_depth} for {len(symbols)} symbols")
+                    else:
+                        print(f"⚠ No global sampling config found, using default depth={sampling_pool.default_max_samples} for {len(symbols)} symbols")
+                finally:
+                    db.close()
+            except Exception as e:
+                print(f"✗ Failed to load global sampling config: {e}")
+
+            # Clean up any leftover backfill tasks from previous runs
+            try:
+                from database.models import KlineCollectionTask
+                db = SessionLocal()
+                try:
+                    # Delete all running and pending backfill tasks
+                    deleted_count = db.query(KlineCollectionTask).filter(
+                        KlineCollectionTask.status.in_(['running', 'pending'])
+                    ).delete(synchronize_session=False)
+                    db.commit()
+                    if deleted_count > 0:
+                        print(f"✓ Cleaned up {deleted_count} leftover backfill tasks")
+                finally:
+                    db.close()
+            except Exception as e:
+                print(f"⚠ Failed to clean up backfill tasks: {e}")
+
+            # Initialize all services (scheduler, market data tasks, auto trading, etc.)
+            print("About to initialize services...")
+            from services.startup import initialize_services
+            initialize_services()
+            print("Services initialization completed")
+            
+        except Exception as e:
+            print(f"Background initialization error: {e}")
+            import traceback
+            traceback.print_exc()
     
-    # Ensure prompt templates exist
-    db = SessionLocal()
-    try:
-        from services.prompt_initializer import seed_prompt_templates
-        seed_prompt_templates(db)
-    finally:
-        db.close()
-    
-    # Initialize system log collector
-    from services.system_logger import setup_system_logger
-    setup_system_logger()
-
-    # Load and apply global sampling configuration (use watchlist if available)
-    try:
-        from database.models import GlobalSamplingConfig
-        from services.sampling_pool import sampling_pool
-        from services.trading_commands import AI_TRADING_SYMBOLS
-        from services.hyperliquid_symbol_service import get_selected_symbols as get_hyperliquid_selected_symbols
-
-        db = SessionLocal()
-        try:
-            symbols = get_hyperliquid_selected_symbols() or AI_TRADING_SYMBOLS
-            global_config = db.query(GlobalSamplingConfig).first()
-            if global_config and global_config.sampling_depth:
-                for symbol in symbols:
-                    sampling_pool.set_max_samples(symbol, global_config.sampling_depth)
-                print(f"✓ Sampling pool configured: depth={global_config.sampling_depth} for {len(symbols)} symbols")
-            else:
-                print(f"⚠ No global sampling config found, using default depth={sampling_pool.default_max_samples} for {len(symbols)} symbols")
-        finally:
-            db.close()
-    except Exception as e:
-        print(f"✗ Failed to load global sampling config: {e}")
-
-    # Clean up any leftover backfill tasks from previous runs
-    try:
-        from database.models import KlineCollectionTask
-        db = SessionLocal()
-        try:
-            # Delete all running and pending backfill tasks
-            deleted_count = db.query(KlineCollectionTask).filter(
-                KlineCollectionTask.status.in_(['running', 'pending'])
-            ).delete(synchronize_session=False)
-            db.commit()
-            if deleted_count > 0:
-                print(f"✓ Cleaned up {deleted_count} leftover backfill tasks")
-        finally:
-            db.close()
-    except Exception as e:
-        print(f"⚠ Failed to clean up backfill tasks: {e}")
-
-    # Initialize all services (scheduler, market data tasks, auto trading, etc.)
-    print("About to initialize services...")
-    from services.startup import initialize_services
-    initialize_services()
-    print("Services initialization completed")
+    # Run initialization in background thread - don't block startup
+    init_thread = threading.Thread(target=background_initialization, daemon=True)
+    init_thread.start()
+    print("✓ Server ready - initialization running in background")
 
 
 @app.on_event("shutdown")

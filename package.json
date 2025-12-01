@@ -2,6 +2,9 @@
   "name": "hyper-alpha-arena",
   "private": true,
   "scripts": {
+    "local": "concurrently \"pnpm run local:backend\" \"pnpm run local:frontend\"",
+    "local:backend": "cd backend && /opt/homebrew/bin/python3.12 -m uvicorn main:app --reload --port 8802 --host 0.0.0.0",
+    "local:frontend": "cd frontend && pnpm dev",
     "dev": "concurrently \"pnpm run dev:backend\" \"pnpm run dev:frontend\"",
     "dev:frontend": "cd frontend && pnpm dev",
     "dev:backend": "cd backend && uv sync --quiet && uv run uvicorn main:app --reload --port 5611 --host 0.0.0.0",
