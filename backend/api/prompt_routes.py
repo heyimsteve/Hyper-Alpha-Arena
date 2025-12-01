@@ -358,8 +358,18 @@ def preview_prompt(
                 entry.setdefault("name", sym)
                 symbol_metadata_map[sym] = entry
         else:
-            active_symbols = requested_symbols or base_symbol_order
-            symbol_metadata_map = {sym: SUPPORTED_SYMBOLS.get(sym, sym) for sym in active_symbols}
+            # For non-Hyperliquid accounts, still use watchlist if available
+            active_symbols = requested_symbols or hyper_watchlist or base_symbol_order
+            symbol_metadata_map = {}
+            for sym in active_symbols:
+                # Try to get metadata from Hyperliquid map, fallback to SUPPORTED_SYMBOLS
+                entry = dict(hyper_symbol_map.get(sym, {}))
+                if not entry:
+                    name = SUPPORTED_SYMBOLS.get(sym, sym)
+                    entry = {"name": name if isinstance(name, str) else sym}
+                else:
+                    entry.setdefault("name", sym)
+                symbol_metadata_map[sym] = entry
 
         if not active_symbols:
             active_symbols = base_symbol_order

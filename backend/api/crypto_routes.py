@@ -51,7 +51,7 @@ async def get_crypto_market_status(symbol: str) -> Dict[str, Any]:
 @router.get("/popular")
 async def get_popular_cryptos() -> List[Dict[str, Any]]:
     """Get popular crypto trading pairs with current prices"""
-    popular_symbols = ["BTC", "ETH", "SOL", "DOGE", "BNB", "XRP"]
+    popular_symbols = ["BTC", "ETH", "SOL", "HYPE"]
     
     results = []
     for symbol in popular_symbols:

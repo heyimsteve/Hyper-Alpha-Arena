@@ -30,7 +30,7 @@ DEFAULT_SYMBOLS: List[Dict[str, str]] = [
     {"symbol": "BTC", "name": "Bitcoin"},
     {"symbol": "ETH", "name": "Ethereum"},
     {"symbol": "SOL", "name": "Solana"},
-    {"symbol": "DOGE", "name": "Dogecoin"},
+    {"symbol": "HYPE", "name": "Hyperliquid"},
 ]
 
 META_ENDPOINTS = {

@@ -333,7 +333,7 @@ class HyperliquidClient:
             usdc_symbols = [s for s in symbols if '/USDC' in s]
             
             # Prioritize mainstream cryptos (perpetual swaps) and popular spot pairs
-            mainstream_perps = [s for s in usdc_symbols if any(crypto in s for crypto in ['BTC/', 'ETH/', 'SOL/', 'DOGE/', 'BNB/', 'XRP/'])]
+            mainstream_perps = [s for s in usdc_symbols if any(crypto in s for crypto in ['BTC/', 'ETH/', 'SOL/', 'HYPE/'])]
             other_symbols = [s for s in usdc_symbols if s not in mainstream_perps]
             
             # Return mainstream first, then others
@@ -344,7 +344,7 @@ class HyperliquidClient:
             
         except Exception as e:
             logger.error(f"Error getting symbols: {e}")
-            return ['BTC/USD', 'ETH/USD', 'SOL/USD']  # Fallback popular pairs
+            return ['BTC/USD', 'HYPE/USD', 'SOL/USD']  # Fallback popular pairs
 
     def _format_symbol(self, symbol: str) -> str:
         """Format symbol for CCXT (e.g., 'BTC' -> 'BTC/USDC:USDC')"""

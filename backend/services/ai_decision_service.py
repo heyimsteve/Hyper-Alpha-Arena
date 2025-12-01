@@ -6,12 +6,17 @@ import random
 import json
 import time
 import re
+import warnings
 from decimal import Decimal
 from typing import Any, Dict, Optional, List
 from datetime import datetime
 
 import requests
 from sqlalchemy.orm import Session
+
+# Disable SSL verification warnings for AI API endpoints
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 from database.models import Position, Account, AIDecisionLog
 from services.asset_calculator import calc_positions_value
@@ -312,6 +317,199 @@ def _build_multi_symbol_sampling_data(symbols: List[str], sampling_pool, samplin
     return "\n\n".join(sections)
 
 
+def _fetch_candle_data(symbol: str, interval: str = "15m", lookback: int = 60, environment: str = "mainnet") -> Optional[List[Dict[str, Any]]]:
+    """Fetch candlestick data from Hyperliquid candleSnapshot endpoint
+    
+    Args:
+        symbol: Trading symbol (e.g., 'BTC', 'ETH', 'SOL')
+        interval: Candle interval - supports: "1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "8h", "12h", "1d", "3d", "1w", "1M"
+        lookback: Number of candles to fetch (max 5000)
+        environment: 'testnet' or 'mainnet'
+    
+    Returns:
+        List of candle dictionaries with keys: T (timestamp ms), c (close), h (high), i (interval), l (low), n (trades), o (open), s (symbol), t (start time ms), v (volume)
+        Returns None on error
+    """
+    try:
+        import requests
+        from services.hyperliquid_symbol_service import META_ENDPOINTS
+        
+        # Select endpoint based on environment
+        api_url = META_ENDPOINTS.get(environment, META_ENDPOINTS["mainnet"])
+        
+        # Calculate lookback time (approximate)
+        # Use current time and subtract based on interval
+        import time as time_module
+        end_time = int(time_module.time() * 1000)  # Current time in ms
+        
+        # Approximate start time based on interval
+        interval_ms_map = {
+            "1m": 60_000, "3m": 180_000, "5m": 300_000, "15m": 900_000,
+            "30m": 1_800_000, "1h": 3_600_000, "2h": 7_200_000,
+            "4h": 14_400_000, "8h": 28_800_000, "12h": 43_200_000,
+            "1d": 86_400_000, "3d": 259_200_000, "1w": 604_800_000,
+            "1M": 2_592_000_000  # Approximate
+        }
+        
+        interval_duration = interval_ms_map.get(interval, 900_000)  # Default to 15m
+        start_time = end_time - (lookback * interval_duration)
+        
+        payload = {
+            "type": "candleSnapshot",
+            "req": {
+                "coin": symbol,
+                "interval": interval,
+                "startTime": start_time,
+                "endTime": end_time
+            }
+        }
+        
+        proxies = {'http': None, 'https': None}
+        response = requests.post(api_url, json=payload, timeout=10, proxies=proxies)
+        response.raise_for_status()
+        
+        candles = response.json()
+        if isinstance(candles, list):
+            return candles[-lookback:]  # Return most recent N candles
+        return None
+        
+    except Exception as e:
+        logger.warning(f"Failed to fetch candle data for {symbol}: {e}")
+        return None
+
+
+def _build_candle_data(symbols: List[str], interval: str = "15m", lookback: int = 60, environment: str = "mainnet") -> str:
+    """Build formatted candlestick data for multiple symbols
+    
+    Args:
+        symbols: List of trading symbols
+        interval: Candle interval (default: "15m")
+        lookback: Number of candles to fetch per symbol (default: 60)
+        environment: 'testnet' or 'mainnet' (for Hyperliquid API) or None (for CCXT fallback)
+    
+    Returns:
+        Formatted string with candlestick data for AI analysis
+    """
+    if not symbols:
+        return "No symbols selected for candle data."
+    
+    sections = []
+    
+    for symbol in symbols:
+        # Try Hyperliquid API first if environment is specified
+        if environment in ["testnet", "mainnet"]:
+            candles = _fetch_candle_data(symbol, interval, lookback, environment)
+        else:
+            candles = None
+        
+        # Fallback to CCXT if Hyperliquid API fails or no environment specified
+        if not candles:
+            candles = _fetch_candle_data_ccxt(symbol, interval, lookback)
+        
+        if not candles:
+            sections.append(f"{symbol}: No candle data available")
+            continue
+        
+        lines = [
+            f"{symbol} ({interval} candles, {len(candles)} bars):",
+            ""
+        ]
+        
+        # Display all candles
+        for i, candle in enumerate(candles):
+            # Parse candle data
+            open_price = float(candle.get('o', 0))
+            high_price = float(candle.get('h', 0))
+            low_price = float(candle.get('l', 0))
+            close_price = float(candle.get('c', 0))
+            volume = float(candle.get('v', 0))
+            timestamp_ms = int(candle.get('t', 0))
+            
+            # Format timestamp
+            try:
+                timestamp_str = datetime.fromtimestamp(timestamp_ms / 1000).strftime('%Y-%m-%d %H:%M')
+            except:
+                timestamp_str = 'N/A'
+            
+            # Calculate change
+            change_pct = ((close_price - open_price) / open_price * 100) if open_price > 0 else 0
+            direction = "🟢" if change_pct > 0 else "🔴" if change_pct < 0 else "⚪"
+            
+            lines.append(
+                f"{timestamp_str} {direction} O:${open_price:,.4f} H:${high_price:,.4f} "
+                f"L:${low_price:,.4f} C:${close_price:,.4f} V:{volume:,.0f} ({change_pct:+.2f}%)"
+            )
+        
+        # Calculate overall statistics from all candles
+        if candles:
+            closes = [float(c.get('c', 0)) for c in candles]
+            highs = [float(c.get('h', 0)) for c in candles]
+            lows = [float(c.get('l', 0)) for c in candles]
+            
+            first_close = closes[0]
+            last_close = closes[-1]
+            highest = max(highs)
+            lowest = min(lows)
+            
+            overall_change = ((last_close - first_close) / first_close * 100) if first_close > 0 else 0
+            trend = "BULLISH" if overall_change > 0 else "BEARISH" if overall_change < 0 else "NEUTRAL"
+            
+            lines.append("")
+            lines.append(f"Period Summary ({len(candles)} candles):")
+            lines.append(f"  Price change: {overall_change:+.3f}% ({trend})")
+            lines.append(f"  Range: ${lowest:,.4f} - ${highest:,.4f}")
+            lines.append(f"  Current: ${last_close:,.4f}")
+        
+        sections.append("\n".join(lines))
+    
+    return "\n\n".join(sections)
+
+
+def _fetch_candle_data_ccxt(symbol: str, interval: str = "15m", lookback: int = 60) -> Optional[List[Dict[str, Any]]]:
+    """Fetch candlestick data using CCXT (works for all accounts)
+    
+    Args:
+        symbol: Trading symbol (e.g., 'BTC', 'ETH', 'SOL')
+        interval: Candle interval
+        lookback: Number of candles to fetch
+    
+    Returns:
+        List of candle dictionaries with keys: t (timestamp ms), o (open), h (high), l (low), c (close), v (volume)
+    """
+    try:
+        from services.hyperliquid_market_data import hyperliquid_client
+        
+        # Use the existing CCXT-based client
+        kline_data = hyperliquid_client.get_kline_data(symbol, interval, lookback, persist=False)
+        
+        if not kline_data:
+            return None
+        
+        # Convert to Hyperliquid API format for consistency
+        candles = []
+        for kline in kline_data:
+            # CCXT returns timestamp in milliseconds, but our kline_data might be in seconds
+            timestamp = int(kline['timestamp'])
+            # If timestamp is too small (likely in seconds), convert to milliseconds
+            if timestamp < 10000000000:  # Before year 2286 in seconds
+                timestamp = timestamp * 1000
+            
+            candles.append({
+                't': timestamp,  # timestamp in ms
+                'o': str(kline['open']),
+                'h': str(kline['high']),
+                'l': str(kline['low']),
+                'c': str(kline['close']),
+                'v': str(kline['volume']),
+            })
+        
+        return candles
+        
+    except Exception as e:
+        logger.warning(f"Failed to fetch CCXT candle data for {symbol}: {e}")
+        return None
+
+
 def _build_market_snapshot(
     prices: Dict[str, float],
     positions: Dict[str, Dict[str, Any]],
@@ -520,6 +718,9 @@ def _build_prompt_context(
         margin_usage_percent = f"{hyperliquid_state.get('margin_usage_percent', 0):.1f}"
         maintenance_margin = _format_currency(hyperliquid_state.get('maintenance_margin', 0))
 
+        # Build candle data for Hyperliquid symbols
+        candle_data = _build_candle_data(ordered_symbols, interval="15m", lookback=60, environment=environment)
+
         # Build positions detail from Hyperliquid positions
         hl_positions = hyperliquid_state.get('positions', [])
         if hl_positions:
@@ -574,6 +775,8 @@ def _build_prompt_context(
         margin_usage_percent = "0"
         maintenance_margin = "N/A"
         positions_detail = "No open positions"
+        # Use CCXT for candle data when not using Hyperliquid
+        candle_data = _build_candle_data(ordered_symbols, interval="15m", lookback=60, environment=None)
 
     return {
         # Legacy variables (for Default prompt and backward compatibility)
@@ -616,6 +819,8 @@ def _build_prompt_context(
         "margin_usage_percent": margin_usage_percent,
         "maintenance_margin": maintenance_margin,
         "positions_detail": positions_detail,
+        # Candlestick data (Hyperliquid)
+        "candle_data": candle_data,
     }
 
 
