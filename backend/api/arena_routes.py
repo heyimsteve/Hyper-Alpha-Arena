@@ -123,19 +123,44 @@ def _get_hyperliquid_positions(db: Session, account_id: Optional[int], environme
             if needs_state or needs_positions or needs_wallet:
                 # Decrypt private key and fetch live data as needed
                 private_key = decrypt_private_key(encrypted_key)
-                client = HyperliquidTradingClient(
-                    account_id=account.id,
-                    private_key=private_key,
-                    environment=environment
-                )
+                
+                # Retry logic for rate limit handling
+                max_retries = 3
+                for attempt in range(max_retries):
+                    try:
+                        client = HyperliquidTradingClient(
+                            account_id=account.id,
+                            private_key=private_key,
+                            environment=environment
+                        )
 
-                if needs_state:
-                    account_state = client.get_account_state(db)
-                    wallet_address = account_state.get("wallet_address") or client.wallet_address
-                if needs_positions:
-                    positions_data = client.get_positions(db)
-                if wallet_address is None:
-                    wallet_address = client.wallet_address
+                        if needs_state:
+                            account_state = client.get_account_state(db)
+                            wallet_address = account_state.get("wallet_address") or client.wallet_address
+                        if needs_positions:
+                            positions_data = client.get_positions(db)
+                        if wallet_address is None:
+                            wallet_address = client.wallet_address
+                        
+                        break  # Success, exit retry loop
+                        
+                    except Exception as e:
+                        error_str = str(e)
+                        # Check if it's a 429 rate limit error
+                        if "429" in error_str or "Too Many Requests" in error_str:
+                            if attempt < max_retries - 1:
+                                # Exponential backoff: 2s, 4s, 8s
+                                wait_time = 2 ** (attempt + 1)
+                                logger.warning(
+                                    f"Rate limit hit for account {account.id} (attempt {attempt + 1}/{max_retries}), "
+                                    f"waiting {wait_time}s before retry..."
+                                )
+                                import time
+                                time.sleep(wait_time)
+                                continue
+                            else:
+                                logger.error(f"Rate limit exceeded after {max_retries} attempts for account {account.id}")
+                        raise
 
             if account_state is None or positions_data is None:
                 logger.warning(f"Account {account.id} has no Hyperliquid data available, skipping")

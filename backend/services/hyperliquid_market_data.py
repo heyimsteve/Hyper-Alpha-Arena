@@ -52,23 +52,42 @@ class HyperliquidClient:
             logger.info("HIP3 market fetch disabled for market data client")
 
     def get_last_price(self, symbol: str) -> Optional[float]:
-        """Get the last price for a symbol"""
-        try:
-            if not self.exchange:
-                self._initialize_exchange()
+        """Get the last price for a symbol with rate limit handling"""
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                if not self.exchange:
+                    self._initialize_exchange()
 
-            # Ensure symbol is in CCXT format (e.g., 'BTC/USD')
-            formatted_symbol = self._format_symbol(symbol)
+                # Ensure symbol is in CCXT format (e.g., 'BTC/USD')
+                formatted_symbol = self._format_symbol(symbol)
 
-            ticker = self.exchange.fetch_ticker(formatted_symbol)
-            price = ticker['last']
+                ticker = self.exchange.fetch_ticker(formatted_symbol)
+                price = ticker['last']
 
-            logger.info(f"Got price for {formatted_symbol}: {price}")
-            return float(price) if price else None
+                logger.info(f"Got price for {formatted_symbol}: {price}")
+                return float(price) if price else None
 
-        except Exception as e:
-            logger.error(f"Error fetching price for {symbol}: {e}")
-            return None
+            except Exception as e:
+                error_str = str(e)
+                # Check if it's a 429 rate limit error
+                if "429" in error_str or "Too Many Requests" in error_str:
+                    if attempt < max_retries - 1:
+                        # Exponential backoff: 2s, 4s, 8s
+                        wait_time = 2 ** (attempt + 1)
+                        logger.warning(
+                            f"Rate limit hit for {symbol} (attempt {attempt + 1}/{max_retries}), "
+                            f"waiting {wait_time}s before retry..."
+                        )
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        logger.error(f"Rate limit exceeded after {max_retries} attempts for {symbol}")
+                else:
+                    logger.error(f"Error fetching price for {symbol}: {e}")
+                return None
+        
+        return None
 
     def get_ticker_data(self, symbol: str) -> Optional[Dict[str, Any]]:
         """Get complete ticker data using Hyperliquid native API"""

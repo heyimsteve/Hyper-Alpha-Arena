@@ -142,27 +142,53 @@ class HyperliquidTradingClient:
             raise
 
         # Initialize official Hyperliquid SDK (for order placement)
-        try:
-            from hyperliquid.exchange import Exchange
-            from eth_account import Account as EthAccount
+        max_retries = 3
+        last_error = None
+        
+        for attempt in range(max_retries):
+            try:
+                from hyperliquid.exchange import Exchange
+                from eth_account import Account as EthAccount
 
-            # Create eth_account wallet for SDK
-            self.eth_wallet = EthAccount.from_key(private_key)
+                # Create eth_account wallet for SDK
+                self.eth_wallet = EthAccount.from_key(private_key)
 
-            # Initialize SDK Exchange
-            self.sdk_exchange = Exchange(
-                wallet=self.eth_wallet,
-                base_url=self.api_url,
-                account_address=self.wallet_address
-            )
+                # Initialize SDK Exchange
+                self.sdk_exchange = Exchange(
+                    wallet=self.eth_wallet,
+                    base_url=self.api_url,
+                    account_address=self.wallet_address
+                )
 
-            logger.info(
-                f"Official SDK Exchange initialized: account_id={account_id} "
-                f"environment={environment.upper()} wallet={self.wallet_address}"
-            )
-        except Exception as e:
-            logger.error(f"Failed to initialize Hyperliquid SDK: {e}")
-            raise
+                logger.info(
+                    f"Official SDK Exchange initialized: account_id={account_id} "
+                    f"environment={environment.upper()} wallet={self.wallet_address}"
+                )
+                break  # Success, exit retry loop
+                
+            except Exception as e:
+                last_error = e
+                error_str = str(e)
+                
+                # Check if it's a 429 rate limit error
+                if "429" in error_str or "Too Many Requests" in error_str:
+                    if attempt < max_retries - 1:
+                        # Exponential backoff: 2s, 4s, 8s
+                        wait_time = 2 ** (attempt + 1)
+                        logger.warning(
+                            f"Rate limit hit during SDK initialization for account {account_id} "
+                            f"(attempt {attempt + 1}/{max_retries}), waiting {wait_time}s before retry..."
+                        )
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        logger.error(
+                            f"Rate limit exceeded after {max_retries} attempts during SDK initialization "
+                            f"for account {account_id}"
+                        )
+                else:
+                    logger.error(f"Failed to initialize Hyperliquid SDK: {e}")
+                raise
 
     def _disable_hip3_markets(self) -> None:
         """Ensure HIP3 market fetching is disabled in ccxt."""
