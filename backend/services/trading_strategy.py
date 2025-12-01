@@ -36,8 +36,9 @@ def _as_aware(dt: Optional[datetime]) -> Optional[datetime]:
     if dt is None:
         return None
     if dt.tzinfo is None:
-        local_tz = datetime.now().astimezone().tzinfo
-        return dt.replace(tzinfo=local_tz).astimezone(timezone.utc)
+        # PostgreSQL stores timestamps without timezone info
+        # Assume they are in UTC and add UTC timezone
+        return dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc)
 
 
@@ -223,7 +224,9 @@ class StrategyManager:
                 from database.models import AccountStrategyConfig
                 strategy = db.query(AccountStrategyConfig).filter_by(account_id=account_id).first()
                 if strategy:
-                    strategy.last_trigger_at = event_time
+                    # Store timestamp in UTC without timezone info (PostgreSQL compatibility)
+                    utc_time = event_time.astimezone(timezone.utc).replace(tzinfo=None) if event_time.tzinfo else event_time
+                    strategy.last_trigger_at = utc_time
                     db.commit()
                     logger.info(
                         f"Strategy execution started for account {account_id}, "
@@ -321,7 +324,9 @@ class HyperliquidStrategyManager(StrategyManager):
             with SessionLocal() as db:
                 strategy = db.query(AccountStrategyConfig).filter_by(account_id=account_id).first()
                 if strategy:
-                    strategy.last_trigger_at = event_time
+                    # Store timestamp in UTC without timezone info (PostgreSQL compatibility)
+                    utc_time = event_time.astimezone(timezone.utc).replace(tzinfo=None) if event_time.tzinfo else event_time
+                    strategy.last_trigger_at = utc_time
                     db.commit()
                     logger.info(
                         f"[HyperliquidStrategy] Strategy execution started for account {account_id}, "

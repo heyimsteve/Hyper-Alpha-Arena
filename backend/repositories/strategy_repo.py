@@ -49,8 +49,14 @@ def set_last_trigger(db: Session, account_id: int, when) -> None:
     strategy = get_strategy_by_account(db, account_id)
     if not strategy:
         return
+    # Always store timestamps in UTC without timezone info (PostgreSQL compatibility)
     when_to_store = when
-    if isinstance(when, datetime) and when.tzinfo is not None:
-        when_to_store = when.astimezone(timezone.utc).replace(tzinfo=None)
+    if isinstance(when, datetime):
+        if when.tzinfo is not None:
+            # Convert to UTC and remove timezone info
+            when_to_store = when.astimezone(timezone.utc).replace(tzinfo=None)
+        else:
+            # Assume naive datetime is already in UTC
+            when_to_store = when
     strategy.last_trigger_at = when_to_store
     db.commit()

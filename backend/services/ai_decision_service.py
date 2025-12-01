@@ -1130,6 +1130,22 @@ def call_ai_for_decision(
         for endpoint in endpoints:
             for attempt in range(max_retries):
                 try:
+                    # Log AI prompt to system logs (truncate if too long)
+                    prompt_preview = prompt[:500] + "..." if len(prompt) > 500 else prompt
+                    system_logger.add_log(
+                        level="INFO",
+                        category="ai_decision",
+                        message=f"[{account.name}] Sending AI prompt to {account.model}",
+                        details={
+                            "account": account.name,
+                            "model": account.model,
+                            "endpoint": endpoint,
+                            "prompt_length": len(prompt),
+                            "prompt_preview": prompt_preview,
+                            "full_prompt": prompt,  # Full prompt stored in details
+                        }
+                    )
+                    
                     response = requests.post(
                         endpoint,
                         headers=headers,
@@ -1139,6 +1155,21 @@ def call_ai_for_decision(
                     )
 
                     if response.status_code == 200:
+                        # Log successful AI response to system logs
+                        response_json = response.json()
+                        response_preview = str(response_json)[:500] + "..." if len(str(response_json)) > 500 else str(response_json)
+                        system_logger.add_log(
+                            level="INFO",
+                            category="ai_decision",
+                            message=f"[{account.name}] Received AI response from {account.model}",
+                            details={
+                                "account": account.name,
+                                "model": account.model,
+                                "endpoint": endpoint,
+                                "response_preview": response_preview,
+                                "full_response": response_json,  # Full response stored in details
+                            }
+                        )
                         success = True
                         break  # Success, exit retry loop
 
