@@ -1348,6 +1348,7 @@ def save_ai_decision(
                    f"prev_portion={prev_portion:.4f} target_portion={target_portion:.4f} executed={executed}")
 
         # Log to system logger
+        print(f"[DEBUG] Logging AI decision to system logger: {account.name} {operation} {symbol}")
         system_logger.log_ai_decision(
             account_name=account.name,
             model=account.model,
@@ -1356,6 +1357,7 @@ def save_ai_decision(
             reason=reason,
             success=executed
         )
+        print(f"[DEBUG] AI decision logged successfully")
 
         # Broadcast AI decision update via WebSocket
         try:

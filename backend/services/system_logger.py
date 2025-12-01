@@ -338,3 +338,4 @@ def setup_system_logger():
     root_logger.addHandler(handler)
 
     logging.info("System log collector initialized")
+    print("✓ System log collector initialized and ready")
