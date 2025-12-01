@@ -46,6 +46,16 @@ class PromptTemplateUpdateRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class PromptTemplateCreateRequest(BaseModel):
+    key: str
+    name: str
+    template_text: str = Field(..., alias="templateText")
+    description: Optional[str] = None
+    updated_by: Optional[str] = Field(None, alias="updatedBy")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class PromptTemplateRestoreRequest(BaseModel):
     updated_by: Optional[str] = Field(None, alias="updatedBy")
 

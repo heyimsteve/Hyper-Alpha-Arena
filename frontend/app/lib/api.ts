@@ -227,6 +227,14 @@ export interface PromptTemplateUpdateRequest {
   updatedBy?: string
 }
 
+export interface PromptTemplateCreateRequest {
+  key: string
+  name: string
+  templateText: string
+  description?: string
+  updatedBy?: string
+}
+
 export interface PromptBindingUpsertRequest {
   id?: number
   accountId: number
@@ -239,6 +247,16 @@ export async function getPromptTemplates(): Promise<PromptListResponse> {
   return response.json()
 }
 
+export async function createPromptTemplate(
+  payload: PromptTemplateCreateRequest,
+): Promise<PromptTemplate> {
+  const response = await apiRequest('/prompts', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+  return response.json()
+}
+
 export async function updatePromptTemplate(
   key: string,
   payload: PromptTemplateUpdateRequest,
@@ -248,6 +266,12 @@ export async function updatePromptTemplate(
     body: JSON.stringify(payload),
   })
   return response.json()
+}
+
+export async function deletePromptTemplate(key: string): Promise<void> {
+  await apiRequest(`/prompts/${encodeURIComponent(key)}`, {
+    method: 'DELETE',
+  })
 }
 
 export async function restorePromptTemplate(
@@ -400,6 +424,12 @@ export async function updateAccount(accountId: number, account: TradingAccountUp
     })
   })
   return response.json()
+}
+
+export async function deleteAccount(accountId: number): Promise<void> {
+  await apiRequest(`/account/${accountId}`, {
+    method: 'DELETE',
+  })
 }
 
 export async function testLLMConnection(testData: {

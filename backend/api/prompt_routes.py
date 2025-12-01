@@ -15,6 +15,7 @@ from schemas.prompt import (
     PromptTemplateResponse,
     PromptBindingUpsertRequest,
     PromptBindingResponse,
+    PromptTemplateCreateRequest,
 )
 
 
@@ -60,6 +61,26 @@ def list_prompt_templates(db: Session = Depends(get_db)) -> PromptListResponse:
     return PromptListResponse(templates=template_responses, bindings=binding_responses)
 
 
+@router.post("", response_model=PromptTemplateResponse, response_model_exclude_none=True)
+def create_prompt_template(
+    payload: PromptTemplateCreateRequest,
+    db: Session = Depends(get_db),
+) -> PromptTemplateResponse:
+    existing = prompt_repo.get_template_by_key(db, payload.key)
+    if existing:
+        raise HTTPException(status_code=400, detail=f"Prompt template with key '{payload.key}' already exists")
+
+    template = prompt_repo.create_template(
+        db,
+        key=payload.key,
+        name=payload.name,
+        description=payload.description,
+        template_text=payload.template_text,
+        updated_by=payload.updated_by,
+    )
+    return PromptTemplateResponse.from_orm(template)
+
+
 @router.put("/{key}", response_model=PromptTemplateResponse, response_model_exclude_none=True)
 def update_prompt_template(
     key: str,
@@ -78,6 +99,24 @@ def update_prompt_template(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     return PromptTemplateResponse.from_orm(template)
+
+
+@router.delete("/{key}")
+def delete_prompt_template(
+    key: str,
+    db: Session = Depends(get_db),
+) -> dict:
+    template = prompt_repo.get_template_by_key(db, key)
+    if not template:
+        raise HTTPException(status_code=404, detail=f"Prompt template with key '{key}' not found")
+
+    # Prevent deleting the default template
+    if key == "default":
+        raise HTTPException(status_code=400, detail="Default prompt template cannot be deleted")
+
+    db.delete(template)
+    db.commit()
+    return {"message": "Prompt template deleted"}
 
 
 @router.post(
@@ -184,6 +223,15 @@ def preview_prompt(
         ]
     }
     """
+    import logging
+    import json
+    logger = logging.getLogger(__name__)
+    
+    # Log the incoming request payload
+    logger.info("="*80)
+    logger.info("POST /api/prompts/preview - REQUEST PAYLOAD:")
+    logger.info(json.dumps(payload, indent=2, default=str))
+    logger.info("="*80)
     from services.ai_decision_service import (
         _get_portfolio_data,
         _build_prompt_context,
@@ -350,9 +398,19 @@ def preview_prompt(
         context["sampling_data"] = sampling_data
 
         try:
+            logger.info(f"Attempting to fill template for account {account.name} (ID: {account.id})")
+            logger.info(f"Template text preview (first 200 chars): {template.template_text[:200]}...")
+            logger.info(f"Available context keys: {list(context.keys())}")
+            
             filled_prompt = template.template_text.format_map(SafeDict(context))
+            
+            logger.info(f"✓ Successfully filled prompt for {account.name}")
         except Exception as err:
-            logger.error(f"Failed to fill prompt for {account.name}: {err}")
+            logger.error(f"✗ Failed to fill prompt for {account.name}: {err}")
+            logger.error(f"Error type: {type(err).__name__}")
+            logger.error(f"Template key: {prompt_key}")
+            logger.error(f"Template text (full): {template.template_text}")
+            logger.error(f"Context data: {json.dumps({k: str(v)[:100] if len(str(v)) > 100 else v for k, v in context.items()}, indent=2, default=str)}")
             filled_prompt = f"Error filling prompt: {err}"
 
         previews.append({
@@ -362,4 +420,19 @@ def preview_prompt(
             "filledPrompt": filled_prompt,
         })
 
-    return {"previews": previews}
+    # Log the response
+    result = {"previews": previews}
+    logger.info("="*80)
+    logger.info("POST /api/prompts/preview - RESPONSE:")
+    logger.info(f"Number of previews generated: {len(previews)}")
+    for preview in previews:
+        logger.info(f"  Account: {preview['accountName']} (ID: {preview['accountId']})")
+        if preview['filledPrompt'].startswith('Error'):
+            logger.error(f"    Status: ERROR")
+            logger.error(f"    Error: {preview['filledPrompt']}")
+        else:
+            logger.info(f"    Status: SUCCESS")
+            logger.info(f"    Prompt length: {len(preview['filledPrompt'])} characters")
+    logger.info("="*80)
+    
+    return result

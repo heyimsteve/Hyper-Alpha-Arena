@@ -7,6 +7,8 @@ import {
   upsertPromptBinding,
   deletePromptBinding,
   getAccounts,
+  createPromptTemplate,
+  deletePromptTemplate,
   PromptTemplate,
   PromptBinding,
   TradingAccount,
@@ -48,6 +50,9 @@ export default function PromptManager() {
   const [bindingSaving, setBindingSaving] = useState(false)
   const [bindingForm, setBindingForm] = useState<BindingFormState>(DEFAULT_BINDING_FORM)
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false)
+  const [creatingNew, setCreatingNew] = useState(false)
+  const [newKey, setNewKey] = useState('')
+  const [newName, setNewName] = useState('')
 
   const selectedTemplate = useMemo(
     () => templates.find((tpl) => tpl.key === selectedKey) || null,
@@ -101,6 +106,9 @@ export default function PromptManager() {
   }, [])
 
   const handleSelectTemplate = (key: string) => {
+    setCreatingNew(false)
+    setNewKey('')
+    setNewName('')
     setSelectedKey(key)
     const tpl = templates.find((item) => item.key === key)
     setTemplateDraft(tpl?.templateText ?? '')
@@ -108,6 +116,35 @@ export default function PromptManager() {
   }
 
   const handleSaveTemplate = async () => {
+    if (creatingNew) {
+      if (!newKey.trim() || !newName.trim()) {
+        toast.error('Key and name are required for new template')
+        return
+      }
+      setSaving(true)
+      try {
+        const created = await createPromptTemplate({
+          key: newKey.trim(),
+          name: newName.trim(),
+          templateText: templateDraft,
+          description: descriptionDraft || undefined,
+          updatedBy: 'ui',
+        })
+        setTemplates((prev) => [...prev, created].sort((a, b) => a.key.localeCompare(b.key)))
+        setSelectedKey(created.key)
+        setCreatingNew(false)
+        setNewKey('')
+        setNewName('')
+        toast.success('Prompt template created')
+      } catch (err) {
+        console.error(err)
+        toast.error(err instanceof Error ? err.message : 'Failed to create prompt template')
+      } finally {
+        setSaving(false)
+      }
+      return
+    }
+
     if (!selectedKey) return
     setSaving(true)
     try {
@@ -142,6 +179,37 @@ export default function PromptManager() {
     } catch (err) {
       console.error(err)
       toast.error(err instanceof Error ? err.message : 'Failed to restore prompt template')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleStartNewTemplate = () => {
+    setCreatingNew(true)
+    setSelectedKey(null)
+    setNewKey('')
+    setNewName('')
+    setTemplateDraft('')
+    setDescriptionDraft('')
+  }
+
+  const handleDeleteTemplateClick = async () => {
+    if (!selectedKey) return
+    const tpl = templates.find((t) => t.key === selectedKey)
+    if (!tpl) return
+    if (!confirm(`Delete template "${tpl.name}" (${tpl.key})?`)) return
+    setSaving(true)
+    try {
+      await deletePromptTemplate(selectedKey)
+      const remaining = templates.filter((t) => t.key !== selectedKey)
+      setTemplates(remaining)
+      setSelectedKey(remaining[0]?.key ?? null)
+      setTemplateDraft(remaining[0]?.templateText ?? '')
+      setDescriptionDraft(remaining[0]?.description ?? '')
+      toast.success('Prompt template deleted')
+    } catch (err) {
+      console.error(err)
+      toast.error(err instanceof Error ? err.message : 'Failed to delete prompt template')
     } finally {
       setSaving(false)
     }
@@ -225,32 +293,78 @@ export default function PromptManager() {
         <div className="flex-1 flex flex-col h-full gap-4 overflow-hidden">
           <Card className="flex-1 flex flex-col h-full overflow-hidden">
             <CardHeader>
-              <CardTitle className="text-base">Prompt Template Editor</CardTitle>
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="text-base">Prompt Template Editor</CardTitle>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleStartNewTemplate}
+                    disabled={saving}
+                  >
+                    New Template
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-destructive"
+                    onClick={handleDeleteTemplateClick}
+                    disabled={!selectedTemplate || saving}
+                  >
+                    Delete
+                  </Button>
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="flex flex-col gap-4 h-[100%] flex-1 overflow-hidden">
               {/* Template Selection Dropdown */}
-              <div>
-                <label className="text-xs uppercase text-muted-foreground">Template</label>
-                <Select
-                  value={selectedKey || ''}
-                  onValueChange={handleSelectTemplate}
-                  disabled={loading}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={loading ? 'Loading...' : 'Select a template'} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {templates.map((tpl) => (
-                      <SelectItem key={tpl.id} value={tpl.key}>
-                        <div className="flex flex-col items-start">
-                          <span className="font-semibold">{tpl.name}</span>
-                          <span className="text-xs text-muted-foreground">{tpl.key}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {!creatingNew && (
+                <div>
+                  <label className="text-xs uppercase text-muted-foreground">Template</label>
+                  <Select
+                    value={selectedKey || ''}
+                    onValueChange={handleSelectTemplate}
+                    disabled={loading}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={loading ? 'Loading...' : 'Select a template'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {templates.map((tpl) => (
+                        <SelectItem key={tpl.id} value={tpl.key}>
+                          <div className="flex flex-col items-start">
+                            <span className="font-semibold">{tpl.name}</span>
+                            <span className="text-xs text-muted-foreground">{tpl.key}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {creatingNew && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs uppercase text-muted-foreground">Key</label>
+                    <Input
+                      value={newKey}
+                      onChange={(e) => setNewKey(e.target.value)}
+                      placeholder="unique-key"
+                      disabled={saving}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs uppercase text-muted-foreground">Name</label>
+                    <Input
+                      value={newName}
+                      onChange={(e) => setNewName(e.target.value)}
+                      placeholder="Display name"
+                      disabled={saving}
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* Description Input */}
               <div>
@@ -259,7 +373,7 @@ export default function PromptManager() {
                   value={descriptionDraft}
                   onChange={(event) => setDescriptionDraft(event.target.value)}
                   placeholder="Prompt description"
-                  disabled={!selectedTemplate || saving}
+                  disabled={(!selectedTemplate && !creatingNew) || saving}
                 />
               </div>
 
@@ -270,7 +384,7 @@ export default function PromptManager() {
                   className="flex-1 w-full rounded-md border bg-background p-3 font-mono text-sm leading-relaxed focus:outline-none focus:ring-1 focus:ring-ring"
                   value={templateDraft}
                   onChange={(event) => setTemplateDraft(event.target.value)}
-                  disabled={!selectedTemplate || saving}
+                  disabled={(!selectedTemplate && !creatingNew) || saving}
                 />
               </div>
 
@@ -287,11 +401,11 @@ export default function PromptManager() {
                   <Button
                     variant="outline"
                     onClick={handleRestoreTemplate}
-                    disabled={!selectedTemplate || saving}
+                    disabled={!selectedTemplate || saving || creatingNew}
                   >
                     Restore Default
                   </Button>
-                  <Button onClick={handleSaveTemplate} disabled={!selectedTemplate || saving}>
+                  <Button onClick={handleSaveTemplate} disabled={saving || (!selectedTemplate && !creatingNew)}>
                     Save Template
                   </Button>
                 </div>

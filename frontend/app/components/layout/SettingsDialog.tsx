@@ -14,8 +14,8 @@ import {
   getAccounts as getAccounts,
   createAccount as createAccount,
   updateAccount as updateAccount,
+  deleteAccount as deleteAccount,
   testLLMConnection,
-  deleteTradingAccount,
   type TradingAccount,
   type TradingAccountCreate,
   type TradingAccountUpdate
@@ -403,8 +403,7 @@ export default function SettingsDialog({ open, onOpenChange, onAccountUpdated, e
                             onClick={async () => {
                               if (confirm(`Are you sure you want to delete ${account.name}?`)) {
                                 try {
-                                  const sessionToken = 'default-session'
-                                  await deleteTradingAccount(account.id, sessionToken)
+                                  await deleteAccount(account.id)
                                   toast.success(`${account.name} deleted successfully`)
                                   loadAccounts()
                                   onAccountUpdated?.()
