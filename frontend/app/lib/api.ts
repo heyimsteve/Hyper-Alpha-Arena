@@ -537,12 +537,13 @@ export interface ArenaModelChatResponse {
   entries: ArenaModelChatEntry[]
 }
 
-export async function getArenaModelChat(params?: { limit?: number; account_id?: number; trading_mode?: string; wallet_address?: string }): Promise<ArenaModelChatResponse> {
+export async function getArenaModelChat(params?: { limit?: number; account_id?: number; trading_mode?: string; wallet_address?: string; before_time?: string }): Promise<ArenaModelChatResponse> {
   const search = new URLSearchParams()
   if (params?.limit) search.append('limit', params.limit.toString())
   if (params?.account_id) search.append('account_id', params.account_id.toString())
   if (params?.trading_mode) search.append('trading_mode', params.trading_mode)
   if (params?.wallet_address) search.append('wallet_address', params.wallet_address)
+  if (params?.before_time) search.append('before_time', params.before_time)
   const query = search.toString()
   const response = await apiRequest(`/arena/model-chat${query ? `?${query}` : ''}`)
   return response.json()
@@ -807,7 +808,7 @@ export interface MembershipResponse {
 
 // Get membership information from external membership service
 // IMPORTANT: This function supports both same-domain and cross-domain access
-// - Same-domain (arena.akooi.com): Uses cookies automatically
+// - Same-domain: Uses cookies automatically
 // - Cross-domain (localhost/custom domains): Uses Authorization header with arena_token
 // This ensures paid users can access membership features regardless of deployment domain
 export async function getMembershipInfo(): Promise<MembershipResponse> {
@@ -834,6 +835,11 @@ export async function getMembershipInfo(): Promise<MembershipResponse> {
     if (!response.ok) {
       if (response.status === 401) {
         // User not authenticated or no membership
+        // This can happen if:
+        // 1. User is not logged in to www.akooi.com
+        // 2. Cross-site cookies are blocked (localhost access with old cookies)
+        // 3. Token has expired
+        console.warn('[Membership] 401 Unauthorized - Please re-login at https://www.akooi.com to refresh your session')
         return { membership: null }
       }
       throw new Error(`Failed to fetch membership info: ${response.status}`)

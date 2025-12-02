@@ -260,15 +260,27 @@ Use K-line data, technical indicators, and market data to inform your decisions.
 - {{ETH_klines_1h}}(100) - Last 100 candles of ETH 1-hour K-line data
 
 **Technical Indicator Variables** (must match K-line period):
-- {{BTC_RSI14_15m}} - RSI(14) indicator for BTC on 15-minute chart
-- {{BTC_MACD_15m}} - MACD indicator for BTC on 15-minute chart
+
+Trend Indicators:
 - {{BTC_MA_15m}} - Moving averages (MA5, MA10, MA20) for BTC
-- {{BTC_EMA_15m}} - Exponential moving averages (EMA20, EMA50) for BTC
-- {{BTC_BOLL_15m}} - Bollinger Bands for BTC
-- {{BTC_ATR14_15m}} - Average True Range for BTC
+- {{BTC_EMA_15m}} - Exponential moving averages (EMA20, EMA50, EMA100) for BTC
+
+Momentum Indicators:
+- {{BTC_RSI14_15m}} - RSI(14) indicator for BTC on 15-minute chart
+- {{BTC_RSI7_15m}} - RSI(7) indicator for faster momentum signals
+- {{BTC_MACD_15m}} - MACD indicator (MACD line, signal line, histogram) for BTC
+- {{BTC_STOCH_15m}} - Stochastic Oscillator (%K and %D lines) for BTC
+
+Volatility Indicators:
+- {{BTC_BOLL_15m}} - Bollinger Bands (upper, middle, lower) for BTC
+- {{BTC_ATR14_15m}} - Average True Range for volatility measurement
+
+Volume Indicators:
+- {{BTC_VWAP_15m}} - Volume Weighted Average Price for institutional levels
+- {{BTC_OBV_15m}} - On-Balance Volume for volume trend confirmation
 
 Supported periods: 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 8h, 12h, 1d, 3d, 1w, 1M
-Supported indicators: RSI14, MACD, MA, EMA, BOLL, ATR14
+Supported indicators: RSI14, RSI7, MACD, STOCH, MA, EMA, BOLL, ATR14, VWAP, OBV
 
 {BTC_market_data}
 {BTC_klines_15m}

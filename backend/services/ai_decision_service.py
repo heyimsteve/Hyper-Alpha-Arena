@@ -347,7 +347,7 @@ OUTPUT_FORMAT_JSON = (
     '      "leverage": <integer 1-20>,\n'
     '      "max_price": <number, required for "buy" operations>,\n'
     '      "min_price": <number, required for "sell"/"close" operations>,\n'
-    '      "time_in_force": <string, optional, "Ioc" (default, market-like) | "Gtc" (limit order) | "Alo" (maker only)>,\n'
+    '      "time_in_force": "Ioc",\n'
     '      "take_profit_price": <number, optional, take profit trigger price>,\n'
     '      "stop_loss_price": <number, optional, stop loss trigger price>,\n'
     '      "reason": "<string explaining primary signals>",\n'
@@ -356,6 +356,78 @@ OUTPUT_FORMAT_JSON = (
     '  ]\n'
     '}'
 )
+
+# Placeholder for max leverage in output format template
+MAX_LEVERAGE_PLACEHOLDER = "__MAX_LEVERAGE__"
+
+# Complete OUTPUT FORMAT template with all requirements and examples
+# Uses double-brace escaping for JSON literals to avoid format_map() conflicts
+OUTPUT_FORMAT_COMPLETE = """Respond with ONLY a JSON object using this schema (always emitting the `decisions` array even if it is empty):
+{{
+  "decisions": [
+    {{
+      "operation": "buy" | "sell" | "hold" | "close",
+      "symbol": "<__SYMBOL_SET__>",
+      "target_portion_of_balance": <float 0.0-1.0>,
+      "leverage": <integer 1-__MAX_LEVERAGE__>,
+      "max_price": <number, required for "buy" operations>,
+      "min_price": <number, required for "sell"/"close" operations>,
+      "time_in_force": "Ioc",
+      "take_profit_price": <number, optional>,
+      "stop_loss_price": <number, optional>,
+      "reason": "<string explaining primary signals>",
+      "trading_strategy": "<string covering thesis, risk controls, and exit plan>"
+    }}
+  ]
+}}
+
+CRITICAL OUTPUT REQUIREMENTS:
+- Output MUST be a single, valid JSON object only
+- NO markdown code blocks (no ```json``` wrappers)
+- NO explanatory text before or after the JSON
+- NO comments or additional content outside the JSON object
+- Ensure all JSON fields are properly quoted and formatted
+- Double-check JSON syntax before responding
+
+Example output with multiple simultaneous orders:
+{{
+  "decisions": [
+    {{
+      "operation": "buy",
+      "symbol": "BTC",
+      "target_portion_of_balance": 0.3,
+      "leverage": 3,
+      "max_price": 49500,
+      "time_in_force": "Ioc",
+      "take_profit_price": 52000,
+      "stop_loss_price": 47500,
+      "reason": "Strong bullish momentum with support holding at $48k, RSI recovering from oversold",
+      "trading_strategy": "Opening 3x leveraged long position with 30% balance. Take profit at $52k resistance (+5%), stop loss below $47.5k swing low (-4%). Using IOC for immediate execution."
+    }},
+    {{
+      "operation": "sell",
+      "symbol": "ETH",
+      "target_portion_of_balance": 0.2,
+      "leverage": 2,
+      "min_price": 3125,
+      "reason": "ETH perp funding flipped elevated negative while momentum weakens",
+      "trading_strategy": "Initiating small short hedge until ETH regains strength vs BTC pair. Stop if ETH closes back above $3.2k structural pivot."
+    }}
+  ]
+}}
+
+FIELD TYPE REQUIREMENTS:
+- decisions: array (one entry per supported symbol; include HOLD entries with zero allocation when you choose not to act)
+- operation: string ("buy" for long, "sell" for short, "hold", or "close")
+- symbol: string (exactly one of: __SYMBOL_SET__)
+- target_portion_of_balance: number (float between 0.1 and 1.0)
+- leverage: integer (between 1 and __MAX_LEVERAGE__, REQUIRED field)
+- max_price: number (required for "buy" operations and closing SHORT positions. This is the maximum price you are willing to pay.)
+- min_price: number (required for "sell" operations and closing LONG positions. This is the minimum price you are willing to receive.)
+- take_profit_price: number (optional but recommended, trigger price for profit taking)
+- stop_loss_price: number (optional but recommended, trigger price for loss protection)
+- reason: string explaining the key catalyst, risk, or signal (no strict length limit, but stay focused)
+- trading_strategy: string covering entry thesis, leverage reasoning, liquidation awareness, and exit plan"""
 
 
 DECISION_TASK_TEXT = (
@@ -501,7 +573,8 @@ def _build_prompt_context(
     total_account_value = _format_currency(portfolio.get('total_assets'))
     holdings_detail = _build_holdings_detail(positions)
     market_prices = _build_market_prices(prices, ordered_symbols, symbol_display_map)
-    output_format = OUTPUT_FORMAT_JSON.replace(SYMBOL_PLACEHOLDER, output_symbol_choices or "SYMBOL")
+    # Legacy format (kept for backward compatibility with old templates)
+    output_format_legacy = OUTPUT_FORMAT_JSON.replace(SYMBOL_PLACEHOLDER, output_symbol_choices or "SYMBOL")
 
     # Hyperliquid-specific context - Get leverage settings from unified function
     # This ensures leverage values match the wallet configuration for the current environment
@@ -520,6 +593,9 @@ def _build_prompt_context(
         logger.warning(f"No db session provided to _build_prompt_context, using Account table fallback for leverage")
         max_leverage = getattr(account, "max_leverage", 3)
         default_leverage = getattr(account, "default_leverage", 1)
+
+    # Build complete output format with placeholders replaced
+    output_format = OUTPUT_FORMAT_COMPLETE.replace(SYMBOL_PLACEHOLDER, output_symbol_choices or "SYMBOL").replace(MAX_LEVERAGE_PLACEHOLDER, str(max_leverage))
 
     # Use hyperliquid_state to determine if this is Hyperliquid trading mode
     if hyperliquid_state and environment in ("testnet", "mainnet"):
@@ -672,8 +748,13 @@ def _build_prompt_context(
                     # Get recent closed trades (last 5)
                     recent_trades = client.get_recent_closed_trades(db_session, limit=5)
 
+                    # Get open orders
+                    open_orders = client.get_open_orders(db_session)
+
+                    # Build recent trades section
+                    trades_section = ""
                     if recent_trades:
-                        trade_lines = []
+                        trade_lines = ["Recent closed trades (last 5 positions):"]
                         for trade in recent_trades:
                             symbol = trade.get('symbol', 'UNKNOWN')
                             side = trade.get('side', 'Unknown')
@@ -686,9 +767,42 @@ def _build_prompt_context(
                             trade_lines.append(
                                 f"- {symbol} {side}: Closed at {close_time} @ ${close_price:,.2f} | P&L: {pnl_str} | {direction}"
                             )
-                        recent_trades_summary = "\n".join(trade_lines)
+                        trades_section = "\n".join(trade_lines)
                     else:
-                        recent_trades_summary = "No recent closed trades found"
+                        trades_section = "Recent closed trades: No recent closed trades found"
+
+                    # Build open orders section
+                    orders_section = ""
+                    if open_orders:
+                        # Limit to 10 most recent orders to avoid prompt bloat
+                        display_orders = open_orders[:10]
+                        order_lines = [f"\nOpen orders ({len(open_orders)} pending):"]
+                        for order in display_orders:
+                            symbol = order.get('symbol', 'UNKNOWN')
+                            direction = order.get('direction', 'Unknown')
+                            order_type = order.get('order_type', 'Limit')
+                            order_id = order.get('order_id', 'N/A')
+                            price = order.get('price', 0)
+                            size = order.get('size', 0)
+                            order_value = order.get('order_value', 0)
+                            reduce_only = "Yes" if order.get('reduce_only', False) else "No"
+                            trigger_condition = order.get('trigger_condition')
+                            order_time = order.get('order_time', 'N/A')
+
+                            # Build trigger info
+                            trigger_info = f"Trigger: {trigger_condition}" if trigger_condition else "Trigger: None"
+
+                            order_lines.append(
+                                f"- {symbol} {direction}: {order_type} Order #{order_id} @ ${price:,.2f} | "
+                                f"Size: {size:.5f} | Value: ${order_value:,.2f} | Reduce Only: {reduce_only} | "
+                                f"{trigger_info} | Placed: {order_time}"
+                            )
+                        orders_section = "\n".join(order_lines)
+                    else:
+                        orders_section = "\nOpen orders: No open orders"
+
+                    # Combine both sections (Open Orders first, then Recent Trades)
+                    recent_trades_summary = orders_section + "\n\n" + trades_section
                 else:
                     recent_trades_summary = "Wallet not configured for this environment"
         except Exception as e:
@@ -1073,11 +1187,11 @@ def call_ai_for_decision(
         # For unknown models (not in our hardcoded list), use conservative longer timeout
         # Better to wait longer than to fail due to timeout
         if is_reasoning_model:
-            request_timeout = 120  # Known reasoning models
+            request_timeout = 240  # Known reasoning models (increased for slow reasoning models)
         else:
-            # Unknown models: use 60s as conservative default (between 30s chat and 120s reasoning)
+            # Unknown models: use 120s as conservative default
             # This handles custom model names, future models, and proxy services
-            request_timeout = 60
+            request_timeout = 120
 
         for endpoint in endpoints:
             for attempt in range(max_retries):
@@ -1595,7 +1709,8 @@ def _parse_kline_indicator_variables(template_text: str) -> Dict[str, Dict[str, 
     kline_pattern = r'\{([A-Z]+)_klines_(\w+)\}(?:\((\d+)\))?'
 
     # Pattern for indicator variables: {SYMBOL_INDICATOR_PERIOD}
-    indicator_pattern = r'\{([A-Z]+)_(RSI\d+|MACD|MA\d*|EMA\d*|BOLL|ATR\d+)_(\w+)\}'
+    # Supports: RSI14, RSI7, MACD, STOCH, MA, EMA, BOLL, ATR14, VWAP, OBV
+    indicator_pattern = r'\{([A-Z]+)_(RSI\d+|MACD|STOCH|MA\d*|EMA\d*|BOLL|ATR\d+|VWAP|OBV)_(\w+)\}'
     
     # Pattern for market data: {SYMBOL_market_data}
     market_data_pattern = r'\{([A-Z]+)_market_data\}'
@@ -1629,7 +1744,7 @@ def _parse_kline_indicator_variables(template_text: str) -> Dict[str, Dict[str, 
         if indicator == 'MA':
             grouped[key]['indicators'].extend(['MA5', 'MA10', 'MA20'])
         elif indicator == 'EMA':
-            grouped[key]['indicators'].extend(['EMA20', 'EMA50'])
+            grouped[key]['indicators'].extend(['EMA20', 'EMA50', 'EMA100'])
         else:
             grouped[key]['indicators'].append(indicator)
 
@@ -1763,6 +1878,70 @@ def _format_single_indicator(indicator_name: str, indicator_data: Any) -> str:
             result = [
                 f"{indicator_name}: {current:.2f} ({volatility})",
                 f"20-period average: {avg_atr:.2f}"
+            ]
+            return "\n".join(result)
+
+        elif indicator_name == 'STOCH':
+            # Stochastic Oscillator format: %K and %D lines + interpretation
+            k_line = indicator_data.get('k', [])
+            d_line = indicator_data.get('d', [])
+
+            if not k_line or not d_line:
+                return "N/A"
+
+            current_k = k_line[-1]
+            current_d = d_line[-1]
+            last_5_k = k_line[-5:] if len(k_line) >= 5 else k_line
+
+            # Interpret Stochastic
+            if current_k > 80:
+                interpretation = "Overbought"
+            elif current_k < 20:
+                interpretation = "Oversold"
+            else:
+                interpretation = "Neutral"
+
+            result = [
+                f"%K Line: {current_k:.2f} ({interpretation})",
+                f"%D Line: {current_d:.2f}",
+                f"%K last 5: {', '.join(f'{v:.2f}' for v in last_5_k)}"
+            ]
+            return "\n".join(result)
+
+        elif indicator_name == 'VWAP':
+            # VWAP format: current value + comparison with price
+            values = indicator_data if isinstance(indicator_data, list) else []
+            if not values:
+                return "N/A"
+
+            current = values[-1]
+            last_5 = values[-5:] if len(values) >= 5 else values
+
+            result = [
+                f"VWAP: {current:.2f}",
+                f"VWAP last 5: {', '.join(f'{v:.2f}' for v in last_5)}",
+                f"Note: Price above VWAP suggests bullish sentiment, below suggests bearish"
+            ]
+            return "\n".join(result)
+
+        elif indicator_name == 'OBV':
+            # OBV format: current value + trend
+            values = indicator_data if isinstance(indicator_data, list) else []
+            if not values:
+                return "N/A"
+
+            current = values[-1]
+            last_5 = values[-5:] if len(values) >= 5 else values
+
+            # Determine trend
+            if len(values) >= 2:
+                trend = "Rising" if current > values[-2] else "Falling"
+            else:
+                trend = "N/A"
+
+            result = [
+                f"OBV: {current:.0f} ({trend})",
+                f"OBV last 5: {', '.join(f'{v:.0f}' for v in last_5)}"
             ]
             return "\n".join(result)
 
