@@ -354,15 +354,15 @@ def analyze_kline_chart(
                         endpoint,
                         headers=headers,
                         json=payload,
-                        timeout=request_timeout,
-                        verify=False,
+                        timeout=request_timeout
                     )
 
                     api_elapsed = time.time() - api_start
                     logger.info(f"[K-line AI API] Received response in {api_elapsed:.2f}s: status={response.status_code}, "
                                f"content_length={len(response.content) if response.content else 0}")
 
-                    if response.status_code == 200:
+                    # Accept both 200 and 201 as success (some APIs return 201 for POST)
+                    if response.status_code in [200, 201]:
                         success = True
                         logger.info(f"[K-line AI API] Success! Total API time: {api_elapsed:.2f}s")
                         break

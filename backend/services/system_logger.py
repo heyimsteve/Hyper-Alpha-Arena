@@ -227,27 +227,11 @@ class SystemLogHandler(logging.Handler):
                 import traceback
                 details["exception"] = ''.join(traceback.format_exception(*record.exc_info))
 
-            # 记录WARNING及以上级别,或者策略触发相关的INFO日志
-            if record.levelno >= logging.WARNING:
+            # 记录INFO及以上级别的日志
+            if record.levelno >= logging.INFO:
                 system_logger.add_log(
                     level=level,
                     category=category,
-                    message=message,
-                    details=details
-                )
-            elif record.levelno == logging.INFO and "Strategy triggered" in message:
-                # 收集策略触发的INFO日志
-                system_logger.add_log(
-                    level=level,
-                    category="ai_decision",
-                    message=message,
-                    details=details
-                )
-            elif record.levelno == logging.INFO and "Strategy execution completed" in message:
-                # 收集策略执行完成的INFO日志
-                system_logger.add_log(
-                    level=level,
-                    category="ai_decision",
                     message=message,
                     details=details
                 )
@@ -324,7 +308,7 @@ price_snapshot_logger = PriceSnapshotLogger()
 def setup_system_logger():
     """设置系统日志处理器（在应用启动时调用）"""
     handler = SystemLogHandler()
-    handler.setLevel(logging.WARNING)  # 只收集WARNING及以上
+    handler.setLevel(logging.INFO)  # 收集INFO及以上级别
 
     # 添加到根logger
     root_logger = logging.getLogger()

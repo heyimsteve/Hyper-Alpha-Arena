@@ -12,6 +12,8 @@ from __future__ import annotations
 import json
 import logging
 from typing import Dict, List, Optional
+import time
+import random
 
 import requests
 from sqlalchemy.orm import Session
@@ -114,15 +116,24 @@ def _validate_symbol_tradability(symbol: str) -> bool:
 def fetch_remote_symbols(environment: str = "testnet") -> List[Dict[str, str]]:
     """Call Hyperliquid meta endpoint to retrieve tradable universe."""
     url = META_ENDPOINTS.get(environment, META_ENDPOINTS["testnet"])
-    try:
-        resp = requests.post(url, json={"type": "meta"}, timeout=10)
-        resp.raise_for_status()
-        data = resp.json()
-        universe = data.get("universe") or data.get("universeSpot") or []
-    except Exception as err:
-        logger.warning("Failed to fetch Hyperliquid meta info: %s", err)
-        return []
+    attempts = 3
+    data = None
+    for attempt in range(attempts):
+        try:
+            resp = requests.post(url, json={"type": "meta"}, timeout=10)
+            resp.raise_for_status()
+            data = resp.json()
+            break
+        except Exception as err:
+            wait_for = (2 ** attempt) + random.uniform(0, 0.5)
+            if attempt < attempts - 1:
+                logger.info(f"Hyperliquid meta fetch failed (attempt {attempt + 1}/{attempts}), retrying in {wait_for:.1f}s: {err}")
+                time.sleep(wait_for)
+                continue
+            logger.warning("Failed to fetch Hyperliquid meta info: %s", err)
+            return []
 
+    universe = data.get("universe") or data.get("universeSpot") or []
     results: List[Dict[str, str]] = []
     seen = set()
     invalid_count = 0
@@ -158,7 +169,7 @@ def fetch_remote_symbols(environment: str = "testnet") -> List[Dict[str, str]]:
     return results
 
 
-def refresh_hyperliquid_symbols(environment: str = "testnet") -> List[Dict[str, str]]:
+def refresh_hyperliquid_symbols(environment: str = "mainnet") -> List[Dict[str, str]]:
     """Refresh available symbol list from Hyperliquid."""
     remote_symbols = fetch_remote_symbols(environment)
     if not remote_symbols:

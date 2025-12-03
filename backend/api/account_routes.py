@@ -767,8 +767,7 @@ async def test_llm_connection(payload: dict):
                         endpoint,
                         headers=headers,
                         json=payload_data,
-                        timeout=10.0,
-                        verify=False  # Disable SSL verification for custom AI endpoints
+                        timeout=10.0
                     )
                 except requests.ConnectionError:
                     last_failure_message = f"Failed to connect to {endpoint}. Please check the base URL."
@@ -780,8 +779,8 @@ async def test_llm_connection(payload: dict):
                     last_failure_message = f"Connection test failed: {str(req_err)}"
                     continue
 
-                # Check response status
-                if response.status_code == 200:
+                # Check response status (accept both 200 and 201 as success)
+                if response.status_code in [200, 201]:
                     result = response.json()
 
                     # Extract text from OpenAI-compatible response format

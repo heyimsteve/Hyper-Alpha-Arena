@@ -1200,11 +1200,11 @@ def call_ai_for_decision(
                         endpoint,
                         headers=headers,
                         json=payload,
-                        timeout=request_timeout,
-                        verify=False,  # Disable SSL verification for custom AI endpoints
+                        timeout=request_timeout
                     )
 
-                    if response.status_code == 200:
+                    # Accept both 200 and 201 as success (some APIs return 201 for POST)
+                    if response.status_code in [200, 201]:
                         success = True
                         break  # Success, exit retry loop
 

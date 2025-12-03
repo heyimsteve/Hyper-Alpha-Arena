@@ -19,6 +19,10 @@ from services.hyperliquid_symbol_service import (
     schedule_symbol_refresh_task,
     build_market_stream_symbols,
 )
+from typing import List
+from services.sampling_pool import sampling_pool
+from services.hyperliquid_market_data import get_default_hyperliquid_client
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +59,25 @@ def initialize_services():
         print("Starting market data stream...")
         start_market_stream(combined_symbols, interval_seconds=1.5)
         print("Market data stream started")
+
+        # Warm sampling pool immediately to avoid first-run warnings
+        def warm_sampling_pool(symbols: List[str]) -> None:
+            try:
+                client = get_default_hyperliquid_client()
+                now_ts = datetime.now(timezone.utc).timestamp()
+                for sym in symbols:
+                    try:
+                        price = client.get_last_price(sym)
+                        if price and float(price) > 0:
+                            sampling_pool.add_sample(sym, float(price), now_ts)
+                    except Exception as e:
+                        logger.debug(f"Sampling warm-up: failed to seed {sym}: {e}")
+                logger.info(f"Sampling pool pre-warmed for {len(symbols)} symbols")
+            except Exception as e:
+                logger.debug(f"Sampling warm-up failed: {e}")
+
+        warm_sampling_pool(combined_symbols)
+
         # subscribe_price_updates(handle_price_update)  # DISABLED: Paper trading snapshot
         # print("Asset snapshot handler subscribed")
         logger.info("Market data stream initialized")
