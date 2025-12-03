@@ -35,7 +35,7 @@ from services.hyperliquid_symbol_service import (
 
 logger = logging.getLogger(__name__)
 
-AI_TRADING_SYMBOLS: List[str] = ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE"]
+AI_TRADING_SYMBOLS: List[str] = ["BTC", "ETH", "SOL", "HYPE"]
 ORACLE_PRICE_DEVIATION_LIMIT_PERCENT = 1.0
 
 
@@ -360,7 +360,10 @@ def place_ai_driven_hyperliquid_order(
     if available_symbols:
         logger.info(f"Available sampling symbols for Hyperliquid: {', '.join(available_symbols)}")
     else:
-        logger.warning("No sampling data available for configured Hyperliquid symbols")
+        logger.debug(
+            "No sampling data available for configured Hyperliquid symbols. "
+            "This is expected if price sampling hasn't collected data yet or symbols were just configured."
+        )
 
     symbol_metadata_map = get_hyperliquid_symbol_map()
     prompt_symbol_metadata = {}

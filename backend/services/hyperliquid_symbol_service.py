@@ -30,7 +30,7 @@ DEFAULT_SYMBOLS: List[Dict[str, str]] = [
     {"symbol": "BTC", "name": "Bitcoin"},
     {"symbol": "ETH", "name": "Ethereum"},
     {"symbol": "SOL", "name": "Solana"},
-    {"symbol": "DOGE", "name": "Dogecoin"},
+    {"symbol": "HYPE", "name": "Hyperliquid"},
 ]
 
 META_ENDPOINTS = {
@@ -162,7 +162,7 @@ def refresh_hyperliquid_symbols(environment: str = "testnet") -> List[Dict[str, 
     """Refresh available symbol list from Hyperliquid."""
     remote_symbols = fetch_remote_symbols(environment)
     if not remote_symbols:
-        logger.warning("No symbols fetched from Hyperliquid meta; keeping existing list")
+        logger.debug("No symbols fetched from Hyperliquid meta; keeping existing list")
 
     with SessionLocal() as db:
         if remote_symbols:

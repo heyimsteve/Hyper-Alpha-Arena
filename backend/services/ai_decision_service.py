@@ -6,12 +6,17 @@ import random
 import json
 import time
 import re
+import warnings
 from decimal import Decimal
 from typing import Any, Dict, Optional, List
 from datetime import datetime
 
 import requests
 from sqlalchemy.orm import Session
+
+# Suppress urllib3 SSL warnings when verify=False is used
+from urllib3.exceptions import InsecureRequestWarning
+warnings.filterwarnings('ignore', category=InsecureRequestWarning)
 
 from database.models import Position, Account, AIDecisionLog
 from services.asset_calculator import calc_positions_value
@@ -35,9 +40,7 @@ SUPPORTED_SYMBOLS: Dict[str, str] = {
     "BTC": "Bitcoin",
     "ETH": "Ethereum",
     "SOL": "Solana",
-    "DOGE": "Dogecoin",
-    "XRP": "Ripple",
-    "BNB": "Binance Coin",
+    "HYPE": "Hyperliquid",
 }
 
 
@@ -1204,7 +1207,8 @@ def call_ai_for_decision(
                         verify=False,  # Disable SSL verification for custom AI endpoints
                     )
 
-                    if response.status_code == 200:
+                    # Accept both 200 and 201 as success
+                    if response.status_code in (200, 201):
                         success = True
                         break  # Success, exit retry loop
 
@@ -1230,12 +1234,14 @@ def call_ai_for_decision(
                         )
                         break
 
-                    logger.warning(
-                        "AI API returned status %s for endpoint %s: %s",
-                        response.status_code,
-                        endpoint,
-                        response.text,
-                    )
+                    # Only log non-success status codes that aren't 200 or 201
+                    if response.status_code not in (200, 201):
+                        logger.warning(
+                            "AI API returned status %s for endpoint %s: %s",
+                            response.status_code,
+                            endpoint,
+                            response.text[:200],  # Truncate long responses
+                        )
                     break  # Try next endpoint if available
                 except requests.RequestException as req_err:
                     if attempt < max_retries - 1:
@@ -1631,11 +1637,12 @@ def save_ai_decision(
         )
 
         # Broadcast AI decision update via WebSocket
-        import asyncio
-        from api.ws import broadcast_model_chat_update
-
+        # Schedule broadcast in background without blocking (fire-and-forget)
         try:
-            asyncio.create_task(broadcast_model_chat_update({
+            import asyncio
+            from api.ws import broadcast_model_chat_update
+            
+            decision_payload = {
                 "id": decision_log.id,
                 "account_id": account.id,
                 "account_name": account.name,
@@ -1653,10 +1660,29 @@ def save_ai_decision(
                 "reasoning_snapshot": decision_log.reasoning_snapshot,
                 "decision_snapshot": decision_log.decision_snapshot,
                 "wallet_address": decision_log.wallet_address,
-            }))
+            }
+            
+            # Try to get the running event loop, or schedule for later
+            try:
+                loop = asyncio.get_running_loop()
+                # We're in async context, create task directly
+                asyncio.create_task(broadcast_model_chat_update(decision_payload))
+            except RuntimeError:
+                # No running event loop (sync context), schedule using thread-safe method
+                # Get or create event loop in background
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        # Schedule coroutine to run in the existing loop
+                        asyncio.run_coroutine_threadsafe(broadcast_model_chat_update(decision_payload), loop)
+                    else:
+                        # No loop running, skip broadcast (WebSocket manager will handle periodic updates)
+                        logger.debug("Skipping WebSocket broadcast - no running event loop")
+                except Exception as loop_err:
+                    logger.debug(f"Could not access event loop for broadcast: {loop_err}")
         except Exception as broadcast_err:
             # Don't fail the save operation if broadcast fails
-            logger.warning(f"Failed to broadcast AI decision update: {broadcast_err}")
+            logger.debug(f"WebSocket broadcast skipped: {broadcast_err}")
 
     except Exception as err:
         logger.error(f"Failed to save AI decision log: {err}")

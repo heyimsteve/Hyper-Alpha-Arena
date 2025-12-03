@@ -16,10 +16,8 @@ import defaultChartLogo from '@/components/ui/public/default_chart.webp'
 
 import btcIcon from '@/components/ui/public/btc.svg'
 import ethIcon from '@/components/ui/public/eth.svg'
-import xrpIcon from '@/components/ui/public/xrp.svg'
-import dogeIcon from '@/components/ui/public/doge.svg'
+import hypeIcon from '@/components/ui/public/xrp.svg'
 import solIcon from '@/components/ui/public/sol.svg'
-import bnbIcon from '@/components/ui/public/bnb.svg'
 
 type LogoAsset = {
   src: string
@@ -50,10 +48,8 @@ const modelChartLogoMap: Record<string, LogoAsset> = {
 const symbolLogoMap: Record<string, LogoAsset> = {
   BTC: { src: btcIcon, alt: 'BTC icon' },
   ETH: { src: ethIcon, alt: 'ETH icon' },
-  XRP: { src: xrpIcon, alt: 'XRP icon' },
-  DOGE: { src: dogeIcon, alt: 'DOGE icon' },
+  HYPE: { src: hypeIcon, alt: 'HYPE icon' },
   SOL: { src: solIcon, alt: 'SOL icon' },
-  BNB: { src: bnbIcon, alt: 'BNB icon' },
 }
 
 function normalizeKey(value?: string | null) {

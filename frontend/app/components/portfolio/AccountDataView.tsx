@@ -98,7 +98,7 @@ function formatCurrency(value?: number | null, fractionDigits = 2) {
   })}`
 }
 
-const SUPPORTED_SYMBOLS = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'DOGE'] as const
+const SUPPORTED_SYMBOLS = ['BTC', 'ETH', 'SOL', 'HYPE'] as const
 
 export default function AccountDataView(props: AccountDataViewProps) {
   const {

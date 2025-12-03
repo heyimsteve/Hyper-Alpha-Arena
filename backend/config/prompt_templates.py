@@ -129,7 +129,7 @@ Example of correct output:
 FIELD TYPE REQUIREMENTS:
 - decisions: array (one entry per symbol; include HOLD entries with 0 allocation when no action is needed)
 - operation: string (exactly "buy", "sell", "hold", or "close")
-- symbol: string (exactly one of: BTC, ETH, SOL, BNB, XRP, DOGE)
+- symbol: string (exactly one of: BTC, ETH, SOL, HYPE)
 - target_portion_of_balance: number (float between 0.0 and 1.0)
 - leverage: integer (between 1 and {max_leverage}, required for perpetual contracts)
 - max_price: number (required for "buy" operations and closing SHORT positions - maximum acceptable price for slippage protection)

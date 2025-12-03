@@ -54,9 +54,7 @@ The Hyper Alpha Arena system provides the following variables that can be used i
 - `{BTC_market_data}` - Current price, 24h change, 24h volume, open interest, funding rate for BTC
 - `{ETH_market_data}` - Market data for ETH
 - `{SOL_market_data}` - Market data for SOL
-- `{BNB_market_data}` - Market data for BNB
-- `{XRP_market_data}` - Market data for XRP
-- `{DOGE_market_data}` - Market data for DOGE
+- `{HYPE_market_data}` - Market data for HYPE
 - Similar pattern for other supported symbols
 
 ### K-line (Candlestick) Variables

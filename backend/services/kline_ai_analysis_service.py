@@ -1,15 +1,20 @@
-"""
+"""  
 K-line AI Analysis Service - Handles AI-powered chart analysis
 """
 import logging
 import json
 import time
 import random
+import warnings
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import requests
 from sqlalchemy.orm import Session
+
+# Suppress urllib3 SSL warnings when verify=False is used
+from urllib3.exceptions import InsecureRequestWarning
+warnings.filterwarnings('ignore', category=InsecureRequestWarning)
 
 from database.models import Account, KlineAIAnalysisLog
 from config.prompt_templates import KLINE_ANALYSIS_PROMPT_TEMPLATE
@@ -362,7 +367,8 @@ def analyze_kline_chart(
                     logger.info(f"[K-line AI API] Received response in {api_elapsed:.2f}s: status={response.status_code}, "
                                f"content_length={len(response.content) if response.content else 0}")
 
-                    if response.status_code == 200:
+                    # Accept both 200 and 201 as success
+                    if response.status_code in (200, 201):
                         success = True
                         logger.info(f"[K-line AI API] Success! Total API time: {api_elapsed:.2f}s")
                         break

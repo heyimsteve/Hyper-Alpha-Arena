@@ -1,0 +1,316 @@
+--
+-- PostgreSQL database dump
+--
+
+\restrict 6gbMcESs0baYU8D0k2Qop5iXyfGKexI5sedLwi5uBCQQLGXncY94Wg9xqNj3cgm
+
+-- Dumped from database version 14.20 (Debian 14.20-1.pgdg13+1)
+-- Dumped by pg_dump version 14.20 (Debian 14.20-1.pgdg13+1)
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+SET check_function_bodies = false;
+SET xmloption = content;
+SET client_min_messages = warning;
+SET row_security = off;
+
+DROP INDEX IF EXISTS public.ix_hyperliquid_trades_id;
+DROP INDEX IF EXISTS public.ix_hyperliquid_trades_account_id;
+DROP INDEX IF EXISTS public.ix_hyperliquid_account_snapshots_id;
+DROP INDEX IF EXISTS public.ix_hyperliquid_account_snapshots_account_id;
+ALTER TABLE IF EXISTS ONLY public.hyperliquid_trades DROP CONSTRAINT IF EXISTS hyperliquid_trades_pkey;
+ALTER TABLE IF EXISTS ONLY public.hyperliquid_account_snapshots DROP CONSTRAINT IF EXISTS hyperliquid_account_snapshots_pkey;
+ALTER TABLE IF EXISTS public.hyperliquid_trades ALTER COLUMN id DROP DEFAULT;
+ALTER TABLE IF EXISTS public.hyperliquid_account_snapshots ALTER COLUMN id DROP DEFAULT;
+DROP SEQUENCE IF EXISTS public.hyperliquid_trades_id_seq;
+DROP TABLE IF EXISTS public.hyperliquid_trades;
+DROP SEQUENCE IF EXISTS public.hyperliquid_account_snapshots_id_seq;
+DROP TABLE IF EXISTS public.hyperliquid_account_snapshots;
+SET default_tablespace = '';
+
+SET default_table_access_method = heap;
+
+--
+-- Name: hyperliquid_account_snapshots; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.hyperliquid_account_snapshots (
+    id integer NOT NULL,
+    account_id integer NOT NULL,
+    environment character varying(20) NOT NULL,
+    wallet_address character varying(100),
+    total_equity numeric(18,6) NOT NULL,
+    available_balance numeric(18,6) NOT NULL,
+    used_margin numeric(18,6) NOT NULL,
+    maintenance_margin numeric(18,6),
+    trigger_event character varying(50) NOT NULL,
+    snapshot_data text,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+
+--
+-- Name: hyperliquid_account_snapshots_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.hyperliquid_account_snapshots_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: hyperliquid_account_snapshots_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.hyperliquid_account_snapshots_id_seq OWNED BY public.hyperliquid_account_snapshots.id;
+
+
+--
+-- Name: hyperliquid_trades; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.hyperliquid_trades (
+    id integer NOT NULL,
+    account_id integer NOT NULL,
+    environment character varying(20) NOT NULL,
+    wallet_address character varying(100),
+    symbol character varying(20) NOT NULL,
+    side character varying(10) NOT NULL,
+    quantity numeric(18,8) NOT NULL,
+    price numeric(18,6) NOT NULL,
+    leverage integer NOT NULL,
+    order_id character varying(100),
+    order_status character varying(20) NOT NULL,
+    trade_value numeric(18,6) NOT NULL,
+    fee numeric(18,6),
+    trade_time timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+
+--
+-- Name: hyperliquid_trades_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.hyperliquid_trades_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: hyperliquid_trades_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.hyperliquid_trades_id_seq OWNED BY public.hyperliquid_trades.id;
+
+
+--
+-- Name: hyperliquid_account_snapshots id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.hyperliquid_account_snapshots ALTER COLUMN id SET DEFAULT nextval('public.hyperliquid_account_snapshots_id_seq'::regclass);
+
+
+--
+-- Name: hyperliquid_trades id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.hyperliquid_trades ALTER COLUMN id SET DEFAULT nextval('public.hyperliquid_trades_id_seq'::regclass);
+
+
+--
+-- Data for Name: hyperliquid_account_snapshots; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+COPY public.hyperliquid_account_snapshots (id, account_id, environment, wallet_address, total_equity, available_balance, used_margin, maintenance_margin, trigger_event, snapshot_data, created_at) FROM stdin;
+1	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	155.071858	155.071858	0.000000	0.000000	scheduled	\N	2025-12-02 19:35:15.396135
+2	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	155.071858	155.071858	0.000000	0.000000	scheduled	\N	2025-12-02 19:40:26.736406
+3	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	155.071858	155.071858	0.000000	0.000000	scheduled	\N	2025-12-02 19:45:47.329515
+4	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	155.071858	155.071858	0.000000	0.000000	scheduled	\N	2025-12-02 19:50:57.969889
+5	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	155.071858	155.071858	0.000000	0.000000	scheduled	\N	2025-12-02 19:56:15.558146
+6	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	155.071858	155.071858	0.000000	0.000000	scheduled	\N	2025-12-02 20:01:28.023934
+7	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	155.071858	155.071858	0.000000	0.000000	scheduled	\N	2025-12-02 20:06:45.515112
+8	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	155.071858	155.071858	0.000000	0.000000	scheduled	\N	2025-12-02 20:11:56.39671
+9	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	155.071858	155.071858	0.000000	0.000000	scheduled	\N	2025-12-02 20:17:15.323743
+10	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	155.071858	155.071858	0.000000	0.000000	scheduled	\N	2025-12-02 20:22:27.224725
+11	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	155.071858	155.071858	0.000000	0.000000	scheduled	\N	2025-12-02 20:27:45.828225
+12	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	155.071858	155.071858	0.000000	0.000000	scheduled	\N	2025-12-02 22:13:04.09021
+13	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	155.071858	155.071858	0.000000	0.000000	scheduled	\N	2025-12-02 22:25:23.083581
+14	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	155.071858	155.071858	0.000000	0.000000	scheduled	\N	2025-12-02 22:30:34.363836
+15	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	155.071858	155.071858	0.000000	0.000000	scheduled	\N	2025-12-02 22:35:47.797268
+16	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	155.071858	155.071858	0.000000	0.000000	scheduled	\N	2025-12-02 22:40:59.26026
+17	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	155.071858	155.071858	0.000000	0.000000	scheduled	\N	2025-12-02 22:43:48.573298
+18	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	155.071858	155.071858	0.000000	0.000000	scheduled	\N	2025-12-02 22:48:58.972877
+19	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	155.071858	155.071858	0.000000	0.000000	scheduled	\N	2025-12-02 22:53:11.149019
+20	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	154.978587	92.970147	62.008440	31.004220	scheduled	\N	2025-12-02 22:58:22.745922
+21	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	154.873069	92.917329	61.955740	30.977870	scheduled	\N	2025-12-02 23:03:33.145097
+22	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	154.739669	92.850629	61.889040	30.944520	scheduled	\N	2025-12-02 23:09:50.177317
+23	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	154.633269	92.797429	61.835840	30.917920	scheduled	\N	2025-12-02 23:15:07.856737
+24	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	154.618389	92.789989	61.828400	30.914200	scheduled	\N	2025-12-02 23:20:18.418441
+25	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	154.382430	61.562260	92.820170	46.410085	scheduled	\N	2025-12-02 23:25:28.896357
+26	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	154.359100	61.550595	92.808505	46.404253	scheduled	\N	2025-12-02 23:30:39.165045
+27	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	154.324485	154.324485	0.000000	0.000000	scheduled	\N	2025-12-02 23:35:49.939903
+28	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	153.995032	96.101399	57.893633	28.946817	scheduled	\N	2025-12-02 23:41:08.906001
+29	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	153.901932	96.039332	57.862600	28.931300	scheduled	\N	2025-12-02 23:46:19.561491
+30	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	153.879250	76.585217	77.294033	38.647017	scheduled	\N	2025-12-02 23:51:29.810112
+31	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	153.718350	76.477950	77.240400	38.620200	scheduled	\N	2025-12-02 23:56:40.324133
+32	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	153.840611	76.559045	77.281566	38.640783	scheduled	\N	2025-12-03 00:01:50.857643
+33	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	153.333311	76.220845	77.112466	38.556233	scheduled	\N	2025-12-03 00:07:09.122184
+34	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	153.737311	76.490178	77.247133	38.623567	scheduled	\N	2025-12-03 00:12:19.395976
+35	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	153.757611	76.503711	77.253900	38.626950	scheduled	\N	2025-12-03 00:17:29.975287
+36	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	153.435611	76.289045	77.146566	38.573283	scheduled	\N	2025-12-03 00:22:40.479037
+37	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	153.089411	76.058245	77.031166	38.515583	scheduled	\N	2025-12-03 00:27:51.165525
+38	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	152.871711	75.913111	76.958600	38.479300	scheduled	\N	2025-12-03 00:33:08.84261
+39	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	153.054611	76.035045	77.019566	38.509783	scheduled	\N	2025-12-03 00:38:19.183068
+40	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	153.654611	76.435045	77.219566	38.609783	scheduled	\N	2025-12-03 00:43:29.760735
+41	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	154.148511	76.764311	77.384200	38.692100	scheduled	\N	2025-12-03 00:48:40.479357
+42	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	154.174911	76.781911	77.393000	38.696500	scheduled	\N	2025-12-03 00:53:50.846114
+43	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	153.890511	76.592311	77.298200	38.649100	scheduled	\N	2025-12-03 00:59:08.84292
+44	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	153.760255	76.505122	77.255133	38.627567	scheduled	\N	2025-12-03 01:04:19.554903
+45	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	154.072055	76.712989	77.359066	38.679533	scheduled	\N	2025-12-03 01:09:30.136454
+46	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	154.274355	76.847855	77.426500	38.713250	scheduled	\N	2025-12-03 01:14:40.870243
+47	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	154.385255	76.921789	77.463466	38.731733	scheduled	\N	2025-12-03 01:19:55.521198
+48	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	154.620155	77.078389	77.541766	38.770883	scheduled	\N	2025-12-03 01:25:31.648643
+49	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	154.774455	77.181255	77.593200	38.796600	scheduled	\N	2025-12-03 01:30:41.708331
+50	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	154.767055	77.176322	77.590733	38.795367	scheduled	\N	2025-12-03 01:35:51.761875
+51	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	154.722555	77.146655	77.575900	38.787950	scheduled	\N	2025-12-03 01:41:09.339151
+52	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	154.785555	77.188655	77.596900	38.798450	scheduled	\N	2025-12-03 01:46:19.77754
+53	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	155.682355	77.786522	77.895833	38.947917	scheduled	\N	2025-12-03 01:51:31.011361
+54	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	155.612955	77.740255	77.872700	38.936350	scheduled	\N	2025-12-03 01:56:41.116403
+55	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	156.015048	136.566248	19.448800	9.724400	scheduled	\N	2025-12-03 02:07:09.023478
+56	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	156.380583	102.603093	53.777490	26.888745	scheduled	\N	2025-12-03 02:12:20.049432
+57	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	156.642403	102.745203	53.897200	26.948600	scheduled	\N	2025-12-03 02:17:35.974008
+58	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	156.350423	102.581013	53.769410	26.884705	scheduled	\N	2025-12-03 02:22:47.104687
+59	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	156.903483	102.912843	53.990640	26.995320	scheduled	\N	2025-12-03 02:28:06.395234
+60	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	156.680823	102.784013	53.896810	26.948405	scheduled	\N	2025-12-03 02:33:17.078703
+61	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	156.695663	102.795633	53.900030	26.950015	scheduled	\N	2025-12-03 02:38:34.558127
+62	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	156.654443	102.772223	53.882220	26.941110	scheduled	\N	2025-12-03 02:43:45.286554
+63	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	156.492283	102.680643	53.811640	26.905820	scheduled	\N	2025-12-03 02:48:57.330684
+64	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	156.498163	102.679383	53.818780	26.909390	scheduled	\N	2025-12-03 02:54:08.248373
+65	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	156.715103	102.800453	53.914650	26.957325	scheduled	\N	2025-12-03 02:59:25.892993
+66	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	156.722707	102.807797	53.914910	26.957455	scheduled	\N	2025-12-03 03:04:36.342374
+67	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	156.670627	102.778257	53.892370	26.946185	scheduled	\N	2025-12-03 03:09:46.581864
+68	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	156.731127	102.815507	53.915620	26.957810	scheduled	\N	2025-12-03 03:14:58.035033
+69	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	156.946727	102.950607	53.996120	26.998060	scheduled	\N	2025-12-03 03:20:08.407298
+70	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	156.817867	102.875677	53.942190	26.971095	scheduled	\N	2025-12-03 03:25:25.601565
+71	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	156.901067	102.924977	53.976090	26.988045	scheduled	\N	2025-12-03 03:30:35.945457
+72	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	156.771427	102.845457	53.925970	26.962985	scheduled	\N	2025-12-03 03:35:46.51396
+73	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	156.989994	102.967944	54.022050	27.011025	scheduled	\N	2025-12-03 04:11:09.856544
+74	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	156.792211	156.792211	0.000000	0.000000	scheduled	\N	2025-12-03 04:16:20.568278
+75	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	156.792211	156.792211	0.000000	0.000000	scheduled	\N	2025-12-03 04:21:37.892961
+76	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	156.764028	62.311548	94.452480	47.226240	scheduled	\N	2025-12-03 04:26:48.723613
+77	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	156.583808	62.221438	94.362370	47.181185	scheduled	\N	2025-12-03 04:31:59.503208
+78	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	156.672368	62.265718	94.406650	47.203325	scheduled	\N	2025-12-03 04:37:09.399926
+79	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	157.158848	62.508958	94.649890	47.324945	scheduled	\N	2025-12-03 04:42:20.763985
+80	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	157.133128	62.496098	94.637030	47.318515	scheduled	\N	2025-12-03 04:47:39.560693
+81	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	157.787548	62.823308	94.964240	47.482120	scheduled	\N	2025-12-03 04:52:50.771677
+82	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	157.689168	62.774118	94.915050	47.457525	scheduled	\N	2025-12-03 04:58:09.346445
+83	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	157.981302	157.981302	0.000000	0.000000	scheduled	\N	2025-12-03 05:03:20.734457
+84	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	157.981302	157.981302	0.000000	0.000000	scheduled	\N	2025-12-03 05:08:40.869726
+85	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	157.981302	157.981302	0.000000	0.000000	scheduled	\N	2025-12-03 05:13:51.891861
+\.
+
+
+--
+-- Data for Name: hyperliquid_trades; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+COPY public.hyperliquid_trades (id, account_id, environment, wallet_address, symbol, side, quantity, price, leverage, order_id, order_status, trade_value, fee, trade_time, created_at) FROM stdin;
+1	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	SOL	buy	0.44000000	139.870000	2	256144211971	filled	61.542800	0.000000	2025-12-02 22:57:58.939212	2025-12-02 22:57:58.939212
+2	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	BTC	buy	0.00068000	91932.000000	2	256144264745	filled	62.513760	0.000000	2025-12-02 22:58:03.826613	2025-12-02 22:58:03.826613
+3	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	SOL	close	0.44000000	139.000000	2	256161315184	filled	61.160000	0.000000	2025-12-02 23:21:26.021799	2025-12-02 23:21:26.021799
+4	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	BTC	close	0.00068000	91755.000000	2	256161341051	filled	62.393400	0.000000	2025-12-02 23:21:28.599928	2025-12-02 23:21:28.599928
+5	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	SOL	buy	0.67000000	138.880000	2	256163681529	filled	93.049600	0.000000	2025-12-02 23:25:08.559716	2025-12-02 23:25:08.559716
+6	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	BTC	buy	0.00101000	91673.000000	2	256163720448	filled	92.589730	0.000000	2025-12-02 23:25:13.553551	2025-12-02 23:25:13.553551
+7	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	BTC	close	0.00101000	91570.000000	2	256168072568	filled	92.485700	0.000000	2025-12-02 23:32:05.886351	2025-12-02 23:32:05.886351
+8	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	SOL	close	0.67000000	139.070000	2	256168102934	filled	93.176900	0.000000	2025-12-02 23:32:08.579573	2025-12-02 23:32:08.579573
+9	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	SOL	buy	0.83000000	139.060000	3	256170873881	filled	115.419800	0.000000	2025-12-02 23:35:48.536147	2025-12-02 23:35:48.536147
+10	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	SOL	close	0.83000000	138.830000	3	256174123681	filled	115.228900	0.000000	2025-12-02 23:40:09.371104	2025-12-02 23:40:09.371104
+11	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	BTC	buy	0.00190000	91392.000000	3	256174141617	filled	173.644800	0.000000	2025-12-02 23:40:13.654127	2025-12-02 23:40:13.654127
+12	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	SOL	buy	0.42000000	138.790000	3	256178879636	filled	58.291800	0.000000	2025-12-02 23:47:41.704366	2025-12-02 23:47:41.704366
+13	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	BTC	buy	0.00074000	92358.000000	2	256283427788	filled	68.344920	0.000000	2025-12-03 02:11:15.709009	2025-12-03 02:11:15.709009
+14	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	SOL	close	0.42000000	140.230000	1	256371743225	filled	58.896600	0.000000	2025-12-03 04:15:12.139219	2025-12-03 04:15:12.139219
+15	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	BTC	close	0.00074000	92783.000000	1	256371768410	filled	68.659420	0.000000	2025-12-03 04:15:14.47137	2025-12-03 04:15:14.47137
+16	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	SOL	buy	0.89000000	141.200000	2	256379769449	filled	125.668000	0.000000	2025-12-03 04:26:24.673965	2025-12-03 04:26:24.673965
+17	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	BTC	buy	0.00068000	92917.000000	2	256379789717	filled	63.183560	0.000000	2025-12-03 04:26:28.92056	2025-12-03 04:26:28.92056
+18	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	BTC	close	0.00068000	93339.000000	2	256407212950	filled	63.470520	0.000000	2025-12-03 05:01:07.770819	2025-12-03 05:01:07.770819
+19	1	mainnet	0x950d50d2e1c009212b1511e1ec06f572d577ac15	SOL	close	0.89000000	142.400000	2	256407240154	filled	126.736000	0.000000	2025-12-03 05:01:10.388631	2025-12-03 05:01:10.388631
+\.
+
+
+--
+-- Name: hyperliquid_account_snapshots_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('public.hyperliquid_account_snapshots_id_seq', 85, true);
+
+
+--
+-- Name: hyperliquid_trades_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+--
+
+SELECT pg_catalog.setval('public.hyperliquid_trades_id_seq', 19, true);
+
+
+--
+-- Name: hyperliquid_account_snapshots hyperliquid_account_snapshots_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.hyperliquid_account_snapshots
+    ADD CONSTRAINT hyperliquid_account_snapshots_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: hyperliquid_trades hyperliquid_trades_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.hyperliquid_trades
+    ADD CONSTRAINT hyperliquid_trades_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ix_hyperliquid_account_snapshots_account_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_hyperliquid_account_snapshots_account_id ON public.hyperliquid_account_snapshots USING btree (account_id);
+
+
+--
+-- Name: ix_hyperliquid_account_snapshots_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_hyperliquid_account_snapshots_id ON public.hyperliquid_account_snapshots USING btree (id);
+
+
+--
+-- Name: ix_hyperliquid_trades_account_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_hyperliquid_trades_account_id ON public.hyperliquid_trades USING btree (account_id);
+
+
+--
+-- Name: ix_hyperliquid_trades_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_hyperliquid_trades_id ON public.hyperliquid_trades USING btree (id);
+
+
+--
+-- PostgreSQL database dump complete
+--
+
+\unrestrict 6gbMcESs0baYU8D0k2Qop5iXyfGKexI5sedLwi5uBCQQLGXncY94Wg9xqNj3cgm
+

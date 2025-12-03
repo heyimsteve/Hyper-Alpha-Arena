@@ -148,7 +148,7 @@ class TaskScheduler:
             })
         return jobs
 
-    async def _execute_account_snapshot(self, account_id: int):
+    def _execute_account_snapshot(self, account_id: int):
         """
         Internal method to execute account snapshot update
 
@@ -158,7 +158,7 @@ class TaskScheduler:
         start_time = datetime.now()
         try:
             # Dynamic import to avoid circular dependency
-            from api.ws import manager, _send_snapshot_optimized
+            from api.ws import manager
 
             # Check if account still has active connections
             if account_id not in manager.active_connections:
@@ -169,10 +169,10 @@ class TaskScheduler:
             # Execute optimized snapshot update
             db: Session = SessionLocal()
             try:
-                # Send optimized snapshot update (reduced frequency for expensive data)
-                # Note: For now, skip the async WebSocket update in sync scheduler context
-                # This can be enhanced later to properly handle async operations
-                logger.debug(f"Skipping WebSocket snapshot update for account {account_id} in sync context")
+                # Note: WebSocket updates require async context, which is not available in sync scheduler
+                # The WebSocket manager handles real-time updates separately
+                # This task is mainly for periodic price saving
+                logger.debug(f"Snapshot task running for account {account_id} (sync context)")
 
                 # Save latest prices for account's positions (less frequently)
                 if start_time.second % 30 == 0:  # Only every 30 seconds

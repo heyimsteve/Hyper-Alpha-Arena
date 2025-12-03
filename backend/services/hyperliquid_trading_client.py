@@ -370,147 +370,168 @@ class HyperliquidTradingClient:
             db: Database session
 
         Returns:
-            List of position dicts, each with:
-                - coin: Symbol name (e.g., "BTC")
-                - szi: Position size (signed: positive=long, negative=short)
-                - entry_px: Average entry price
-                - position_value: Current position value
-                - unrealized_pnl: Unrealized profit/loss
-                - margin_used: Margin used for this position
-                - liquidation_px: Liquidation price
-                - leverage: Current leverage
-                - opened_at: Timestamp when position was opened (milliseconds)
-                - opened_at_str: Human-readable opened time
-                - holding_duration_seconds: How long position has been held
-                - holding_duration_str: Human-readable holding duration
+            List of position dictionaries with complete market data
 
         Raises:
             EnvironmentMismatchError: If environment validation fails
         """
         self._validate_environment(db)
 
-        try:
-            logger.info(f"Fetching positions for account {self.account_id} on {self.environment}")
-
-            # Use CCXT's fetchPositions to get all positions
-            positions_raw = self.exchange.fetch_positions()
-
-            # Debug: Print all raw positions data to console
-            print(f"=== CCXT RAW POSITIONS DATA ===")
-            print(positions_raw)
-            print(f"=== END CCXT RAW DATA ===")
-            logger.info(f"CCXT RAW POSITIONS DATA: {positions_raw}")
-
-            # Get user fills to calculate position opened times
-            user_fills = []
+        # Retry logic for rate limit handling
+        max_retries = 3
+        retry_delay = 1.0  # Start with 1 second
+        
+        for attempt in range(max_retries):
             try:
-                user_fills = self._get_user_fills(db)
-                logger.info(f"Retrieved {len(user_fills)} user fills for position timing calculation")
-            except Exception as fills_error:
-                logger.warning(f"Failed to get user fills for position timing: {fills_error}")
-                # Continue without timing information
+                logger.info(f"Fetching positions for account {self.account_id} on {self.environment}")
 
-            # Transform CCXT positions to our format
-            positions = []
-            for pos in positions_raw:
-                info_position = (pos.get('info') or {}).get('position') or {}
-                raw_size = info_position.get('szi')
+                # Use CCXT's fetchPositions to get all positions
+                positions_raw = self.exchange.fetch_positions()
+
+                # Debug: Print all raw positions data to console
+                print(f"=== CCXT RAW POSITIONS DATA ===")
+                print(positions_raw)
+                print(f"=== END CCXT RAW DATA ===")
+                logger.info(f"CCXT RAW POSITIONS DATA: {positions_raw}")
+
+                # Get user fills to calculate position opened times
+                user_fills = []
                 try:
-                    position_size = float(raw_size)
-                except (TypeError, ValueError):
-                    position_size = 0.0
-                side = pos.get('side', '').capitalize()
+                    user_fills = self._get_user_fills(db)
+                    logger.info(f"Retrieved {len(user_fills)} user fills for position timing calculation")
+                except Exception as fills_error:
+                    logger.warning(f"Failed to get user fills for position timing: {fills_error}")
+                    # Continue without timing information
 
-                coin = info_position.get('coin')
+                # Transform CCXT positions to our format
+                positions = []
+                for pos in positions_raw:
+                    info_position = (pos.get('info') or {}).get('position') or {}
+                    raw_size = info_position.get('szi')
+                    try:
+                        position_size = float(raw_size)
+                    except (TypeError, ValueError):
+                        position_size = 0.0
+                    side = pos.get('side', '').capitalize()
 
-                # Calculate position timing
-                opened_at = None
-                opened_at_str = None
-                holding_duration_seconds = None
-                holding_duration_str = None
+                    coin = info_position.get('coin')
 
-                if user_fills and coin and abs(position_size) > 1e-8:
-                    opened_at = self._calculate_position_opened_time(coin, position_size, user_fills)
-                    if opened_at:
-                        from datetime import datetime, timezone
-                        import time as time_module
+                    # Calculate position timing
+                    opened_at = None
+                    opened_at_str = None
+                    holding_duration_seconds = None
+                    holding_duration_str = None
 
-                        # Use UTC time (consistent with session context display)
-                        utc_dt = datetime.fromtimestamp(opened_at / 1000, tz=timezone.utc)
-                        opened_at_str = utc_dt.strftime('%Y-%m-%d %H:%M:%S UTC')
+                    if user_fills and coin and abs(position_size) > 1e-8:
+                        opened_at = self._calculate_position_opened_time(coin, position_size, user_fills)
+                        if opened_at:
+                            from datetime import datetime, timezone
+                            import time as time_module
 
-                        # Calculate holding duration
-                        current_time_ms = int(time_module.time() * 1000)
-                        holding_duration_seconds = (current_time_ms - opened_at) / 1000
+                            # Use UTC time (consistent with session context display)
+                            utc_dt = datetime.fromtimestamp(opened_at / 1000, tz=timezone.utc)
+                            opened_at_str = utc_dt.strftime('%Y-%m-%d %H:%M:%S UTC')
 
-                        # Format duration as human-readable
-                        hours = int(holding_duration_seconds // 3600)
-                        minutes = int((holding_duration_seconds % 3600) // 60)
-                        if hours > 0:
-                            holding_duration_str = f"{hours}h {minutes}m"
-                        else:
-                            holding_duration_str = f"{minutes}m"
+                            # Calculate holding duration
+                            current_time_ms = int(time_module.time() * 1000)
+                            holding_duration_seconds = (current_time_ms - opened_at) / 1000
 
-                positions.append({
-                    'coin': coin,
-                    'szi': position_size,  # Correct signed size
-                    'entry_px': float(info_position.get('entryPx', 0)),
-                    'position_value': float(info_position.get('positionValue', 0)),
-                    'unrealized_pnl': float(info_position.get('unrealizedPnl', 0)),
-                    'margin_used': float(info_position.get('marginUsed', 0)),
-                    'liquidation_px': float(info_position.get('liquidationPx') or 0),
-                    'leverage': float((info_position.get('leverage') or {}).get('value', 0)),
-                    'side': side,  # Correct direction from CCXT
+                            # Format duration as human-readable
+                            hours = int(holding_duration_seconds // 3600)
+                            minutes = int((holding_duration_seconds % 3600) // 60)
+                            if hours > 0:
+                                holding_duration_str = f"{hours}h {minutes}m"
+                            else:
+                                holding_duration_str = f"{minutes}m"
 
-                    # Position timing information (NEW)
-                    'opened_at': opened_at,
-                    'opened_at_str': opened_at_str,
-                    'holding_duration_seconds': holding_duration_seconds,
-                    'holding_duration_str': holding_duration_str,
+                    positions.append({
+                        'coin': coin,
+                        'szi': position_size,  # Correct signed size
+                        'entry_px': float(info_position.get('entryPx', 0)),
+                        'position_value': float(info_position.get('positionValue', 0)),
+                        'unrealized_pnl': float(info_position.get('unrealizedPnl', 0)),
+                        'margin_used': float(info_position.get('marginUsed', 0)),
+                        'liquidation_px': float(info_position.get('liquidationPx') or 0),
+                        'leverage': float((info_position.get('leverage') or {}).get('value', 0)),
+                        'side': side,  # Correct direction from CCXT
 
-                    # Hyperliquid specific fields
-                    'return_on_equity': float(info_position.get('returnOnEquity', 0)),
-                    'max_leverage': float(info_position.get('maxLeverage', 0)),
-                    'cum_funding_all_time': float((info_position.get('cumFunding') or {}).get('allTime', 0)),
-                    'cum_funding_since_open': float((info_position.get('cumFunding') or {}).get('sinceOpen', 0)),
-                    'leverage_type': (info_position.get('leverage') or {}).get('type'),
+                        # Position timing information (NEW)
+                        'opened_at': opened_at,
+                        'opened_at_str': opened_at_str,
+                        'holding_duration_seconds': holding_duration_seconds,
+                        'holding_duration_str': holding_duration_str,
 
-                    # CCXT calculated fields
-                    'notional': float(pos.get('notional', 0)),
-                    'percentage': float(pos.get('percentage', 0)),
-                    'contract_size': float(pos.get('contractSize', 1)),
-                    'margin_mode': pos.get('marginMode', '')
-                })
+                        # Hyperliquid specific fields
+                        'return_on_equity': float(info_position.get('returnOnEquity', 0)),
+                        'max_leverage': float(info_position.get('maxLeverage', 0)),
+                        'cum_funding_all_time': float((info_position.get('cumFunding') or {}).get('allTime', 0)),
+                        'cum_funding_since_open': float((info_position.get('cumFunding') or {}).get('sinceOpen', 0)),
+                        'leverage_type': (info_position.get('leverage') or {}).get('type'),
 
-            logger.debug(f"Found {len(positions)} open positions")
-            update_positions_cache(self.account_id, positions, self.environment)
-            self._record_exchange_action(
-                action_type="fetch_positions",
-                status="success",
-                symbol=None,
-                request_payload={
-                    "account_id": self.account_id,
-                    "environment": self.environment,
-                },
-                response_payload=None,
-            )
+                        # CCXT calculated fields
+                        'notional': float(pos.get('notional', 0)),
+                        'percentage': float(pos.get('percentage', 0)),
+                        'contract_size': float(pos.get('contractSize', 1)),
+                        'margin_mode': pos.get('marginMode', '')
+                    })
 
-            return positions
+                logger.debug(f"Found {len(positions)} open positions")
+                update_positions_cache(self.account_id, positions, self.environment)
+                self._record_exchange_action(
+                    action_type="fetch_positions",
+                    status="success",
+                    symbol=None,
+                    request_payload={
+                        "account_id": self.account_id,
+                        "environment": self.environment,
+                    },
+                    response_payload=None,
+                )
 
-        except Exception as e:
-            self._record_exchange_action(
-                action_type="fetch_positions",
-                status="error",
-                symbol=None,
-                request_payload={
-                    "account_id": self.account_id,
-                    "environment": self.environment,
-                },
-                response_payload=None,
-                error_message=str(e),
-            )
-            logger.error(f"Failed to get positions: {e}", exc_info=True)
-            raise
+                return positions
+
+            except ccxt.RateLimitExceeded as rate_err:
+                if attempt < max_retries - 1:
+                    logger.warning(
+                        f"Rate limit exceeded when fetching positions (attempt {attempt + 1}/{max_retries}). "
+                        f"Retrying in {retry_delay:.1f}s..."
+                    )
+                    import time
+                    time.sleep(retry_delay)
+                    retry_delay *= 2  # Exponential backoff
+                    continue
+                else:
+                    # Last attempt failed, log and raise
+                    logger.error(
+                        f"Rate limit exceeded after {max_retries} attempts. "
+                        "Consider increasing your Hyperliquid trading volume to increase API quota."
+                    )
+                    self._record_exchange_action(
+                        action_type="fetch_positions",
+                        status="error",
+                        symbol=None,
+                        request_payload={
+                            "account_id": self.account_id,
+                            "environment": self.environment,
+                        },
+                        response_payload=None,
+                        error_message=f"Rate limit exceeded: {str(rate_err)}",
+                    )
+                    raise
+            except Exception as e:
+                self._record_exchange_action(
+                    action_type="fetch_positions",
+                    status="error",
+                    symbol=None,
+                    request_payload={
+                        "account_id": self.account_id,
+                        "environment": self.environment,
+                    },
+                    response_payload=None,
+                    error_message=str(e),
+                )
+                logger.error(f"Failed to get positions: {e}", exc_info=True)
+                raise
 
     def _get_user_fills(self, db: Session) -> List[Dict[str, Any]]:
         """

@@ -9,6 +9,11 @@ from typing import List, Optional
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 import logging
+import warnings
+
+# Suppress urllib3 SSL warnings when verify=False is used
+from urllib3.exceptions import InsecureRequestWarning
+warnings.filterwarnings('ignore', category=InsecureRequestWarning)
 
 from database.connection import SessionLocal
 from database.models import Account, Position, Trade, CryptoPrice, AccountAssetSnapshot

@@ -1,0 +1,20 @@
+============================================================
+Hyper Alpha Arena Database Export Manifest
+============================================================
+
+Export Date: 2025-12-03 00:17:58
+Source Host: localhost:5432
+
+Exported Files:
+------------------------------------------------------------
+  alpha_arena: main_db_20251203_001756.sql
+  alpha_snapshots: snapshots_db_20251203_001756.sql
+  encryption_key: encryption_key_20251203_001756.txt
+
+============================================================
+Import Instructions:
+------------------------------------------------------------
+1. Copy all exported files to the new device
+2. Ensure Docker and docker-compose are installed
+3. Run: python backend/database/import_db.py --import-dir <path>
+4. See HOW_TO_IMPORT_EXPORT_DB.md for detailed instructions

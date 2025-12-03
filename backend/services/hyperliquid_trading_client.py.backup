@@ -1065,9 +1065,7 @@ class HyperliquidTradingClient:
             "BTC": 0,
             "ETH": 1,
             "SOL": 2,
-            "DOGE": 3,
-            "XRP": 4,
-            "BNB": 5,
+            "HYPE": 3,
         }
         return asset_map.get(symbol, 0)
 
