@@ -104,11 +104,64 @@ class DatabaseImporter:
             print(f"❌ Error checking database: {str(e)}")
             return False
     
-    def create_database_if_needed(self, db_name: str) -> bool:
-        """Create database if it doesn't exist."""
-        if self.verify_database_exists(db_name):
-            print(f"📊 Database {db_name} already exists")
+    def drop_database(self, db_name: str) -> bool:
+        """Drop a database if it exists."""
+        try:
+            print(f"🗑️  Dropping existing database {db_name}...")
+            
+            # Terminate all connections to the database first
+            terminate_cmd = [
+                "docker", "exec", "-i", "hyper-arena-postgres",
+                "psql",
+                "-U", self.db_user,
+                "-d", "postgres",
+                "-c", f"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '{db_name}';"
+            ]
+            
+            subprocess.run(
+                terminate_cmd,
+                capture_output=True,
+                text=True,
+                env={**os.environ, "PGPASSWORD": self.db_password}
+            )
+            
+            # Drop the database
+            drop_cmd = [
+                "docker", "exec", "-i", "hyper-arena-postgres",
+                "psql",
+                "-U", self.db_user,
+                "-d", "postgres",
+                "-c", f"DROP DATABASE IF EXISTS {db_name};"
+            ]
+            
+            result = subprocess.run(
+                drop_cmd,
+                capture_output=True,
+                text=True,
+                env={**os.environ, "PGPASSWORD": self.db_password}
+            )
+            
+            if result.returncode != 0:
+                print(f"❌ Error dropping database: {result.stderr}")
+                return False
+            
+            print(f"✅ Database {db_name} dropped successfully")
             return True
+            
+        except Exception as e:
+            print(f"❌ Error dropping database: {str(e)}")
+            return False
+    
+    def create_database_if_needed(self, db_name: str, force_recreate: bool = True) -> bool:
+        """Create database, optionally dropping it first if it exists."""
+        if self.verify_database_exists(db_name):
+            if force_recreate:
+                print(f"📊 Database {db_name} already exists, will recreate it")
+                if not self.drop_database(db_name):
+                    return False
+            else:
+                print(f"📊 Database {db_name} already exists")
+                return True
         
         print(f"📊 Creating database {db_name}...")
         

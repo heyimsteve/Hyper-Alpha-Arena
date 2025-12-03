@@ -453,6 +453,13 @@ export async function updateAccount(accountId: number, account: TradingAccountUp
   return response.json()
 }
 
+export async function deleteAccount(accountId: number): Promise<{success: boolean; message: string}> {
+  const response = await apiRequest(`/account/${accountId}`, {
+    method: 'DELETE',
+  })
+  return response.json()
+}
+
 export async function testLLMConnection(testData: {
   model?: string;
   base_url?: string;

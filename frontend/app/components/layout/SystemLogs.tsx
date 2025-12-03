@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { AlertCircle, Info, AlertTriangle, RefreshCw, Trash2, TrendingUp, Brain, Bug, Database } from 'lucide-react'
+import { AlertCircle, Info, AlertTriangle, RefreshCw, Trash2, TrendingUp, Brain, Bug, Database, Download } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { formatDateTime } from '@/lib/dateTime'
 
@@ -146,6 +146,67 @@ export default function SystemLogs() {
     }
   }
 
+  // Export logs as markdown
+  const exportLogsAsMarkdown = () => {
+    try {
+      // Generate markdown content
+      let markdown = `# System Logs Export\n\n`
+      markdown += `**Generated**: ${new Date().toISOString()}\n\n`
+      
+      if (stats) {
+        markdown += `## Statistics\n\n`
+        markdown += `- **Total Logs**: ${stats.total_logs}\n`
+        markdown += `- **Errors**: ${stats.by_level.ERROR}\n`
+        markdown += `- **Warnings**: ${stats.by_level.WARNING}\n`
+        markdown += `- **Info**: ${stats.by_level.INFO}\n`
+        markdown += `- **AI Decisions**: ${stats.by_category.ai_decision}\n`
+        markdown += `- **Price Updates**: ${stats.by_category.price_update}\n`
+        markdown += `- **System Errors**: ${stats.by_category.system_error}\n\n`
+      }
+      
+      markdown += `## Log Entries\n\n`
+      
+      if (logs.length === 0) {
+        markdown += `*No logs to export*\n`
+      } else {
+        logs.forEach((log, index) => {
+          markdown += `### Log ${index + 1}\n\n`
+          markdown += `- **Time**: ${formatTimestamp(log.timestamp)}\n`
+          markdown += `- **Level**: ${log.level}\n`
+          markdown += `- **Category**: ${log.category}\n`
+          markdown += `- **Message**: ${log.message}\n`
+          
+          if (log.details && Object.keys(log.details).length > 0) {
+            markdown += `
+**Details**:
+\`\`\`json
+${JSON.stringify(log.details, null, 2)}
+\`\`\`
+`
+          }
+          
+          markdown += `\n---\n\n`
+        })
+      }
+      
+      // Create and download file
+      const blob = new Blob([markdown], { type: 'text/markdown' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `system-logs-${new Date().toISOString().split('T')[0]}.md`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      
+      toast.success('System logs exported successfully')
+    } catch (error) {
+      console.error('Failed to export logs:', error)
+      toast.error('Failed to export logs')
+    }
+  }
+
   // Auto refresh
   // Initial load
 useEffect(() => {
@@ -219,6 +280,10 @@ useEffect(() => {
           >
             <RefreshCw className="w-4 h-4 mr-2" />
             Refresh
+          </Button>
+          <Button variant="outline" size="sm" onClick={exportLogsAsMarkdown}>
+            <Download className="w-4 h-4 mr-2" />
+            Export
           </Button>
           <Button variant="destructive" size="sm" onClick={clearLogs}>
             <Trash2 className="w-4 h-4 mr-2" />

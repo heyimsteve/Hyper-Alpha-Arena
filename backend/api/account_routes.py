@@ -493,6 +493,45 @@ async def update_account_settings(account_id: int, payload: dict, db: Session = 
         raise HTTPException(status_code=500, detail=f"Failed to update account: {str(e)}")
 
 
+@router.delete("/{account_id}")
+async def delete_account(account_id: int, db: Session = Depends(get_db)):
+    """Delete an AI trader account (soft delete by setting is_active to false)"""
+    try:
+        account = db.query(Account).filter(
+            Account.id == account_id,
+            Account.is_active == "true"
+        ).first()
+        
+        if not account:
+            raise HTTPException(status_code=404, detail="Account not found")
+        
+        # Soft delete: set is_active to false
+        account.is_active = "false"
+        db.commit()
+        
+        logger.info(f"Account {account_id} ({account.name}) deleted successfully")
+        
+        # Reset auto trading job after account deletion
+        import threading
+        def reset_job_async():
+            try:
+                from services.scheduler import reset_auto_trading_job
+                reset_auto_trading_job()
+                logger.info("Auto trading job reset successfully after account deletion")
+            except Exception as e:
+                logger.warning(f"Failed to reset auto trading job: {e}")
+        
+        reset_thread = threading.Thread(target=reset_job_async, daemon=True)
+        reset_thread.start()
+        
+        return {"success": True, "message": f"AI trader '{account.name}' deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete account: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to delete account: {str(e)}")
+
+
 @router.get("/asset-curve")
 async def get_asset_curve(
     timeframe: str = "5m",

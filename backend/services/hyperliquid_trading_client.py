@@ -1011,9 +1011,21 @@ class HyperliquidTradingClient:
             if order_type == "market" and price is None:
                 # If no price provided for market order, fetch current market price
                 try:
+                    # Pre-load markets to avoid lazy loading issues with HIP3
+                    try:
+                        self.exchange.load_markets(reload=False)
+                    except KeyError as market_err:
+                        if 'hip3TokensByName' not in str(market_err):
+                            raise
+                        logger.debug(f"Ignoring HIP3 metadata error during market loading: {market_err}")
+                    
                     ticker = self.exchange.fetch_ticker(ccxt_symbol)
                     price = ticker['last']
                     logger.debug(f"Fetched current price for market order: {price}")
+                except KeyError as ke:
+                    if 'hip3TokensByName' in str(ke):
+                        raise ValueError(f"Market order requires price parameter (CCXT HIP3 metadata error). Please provide explicit price.")
+                    raise ValueError(f"Market order requires price parameter or valid market price. Error: {ke}")
                 except Exception as e:
                     raise ValueError(f"Market order requires price parameter or valid market price. Error: {e}")
 

@@ -14,6 +14,7 @@ import {
   getAccounts as getAccounts,
   createAccount as createAccount,
   updateAccount as updateAccount,
+  deleteAccount as deleteAccount,
   testLLMConnection,
   type TradingAccount,
   type TradingAccountCreate,
@@ -63,6 +64,8 @@ export default function SettingsDialog({ open, onOpenChange, onAccountUpdated, e
     api_key: 'default-key-please-update-in-settings',
     auto_trading_enabled: true,
   })
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const loadAccounts = async () => {
     try {
@@ -258,6 +261,23 @@ export default function SettingsDialog({ open, onOpenChange, onAccountUpdated, e
     }
   }
 
+  const handleDeleteAccount = async (accountId: number) => {
+    try {
+      setDeleting(true)
+      await deleteAccount(accountId)
+      toast.success('AI trader deleted successfully')
+      await loadAccounts()
+      setDeleteConfirmId(null)
+      onAccountUpdated?.()
+    } catch (error) {
+      console.error('Failed to delete account:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete AI trader'
+      toast.error(errorMessage)
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   const content = (
     <>
       {!embedded && (
@@ -398,6 +418,16 @@ export default function SettingsDialog({ open, onOpenChange, onAccountUpdated, e
                           <Button onClick={cancelEdit} variant="outline" size="sm" disabled={loading || testing}>
                             Cancel
                           </Button>
+                          <Button
+                            onClick={() => setDeleteConfirmId(account.id)}
+                            variant="destructive"
+                            size="sm"
+                            disabled={loading || testing || deleting}
+                            className="ml-auto"
+                          >
+                            <Trash2 className="h-4 w-4 mr-1" />
+                            Delete
+                          </Button>
                         </div>
                       </div>
                     ) : (
@@ -460,16 +490,51 @@ export default function SettingsDialog({ open, onOpenChange, onAccountUpdated, e
     </>
   )
 
+  // Delete confirmation dialog
+  const accountToDelete = accounts.find(a => a.id === deleteConfirmId)
+  const confirmDialog = deleteConfirmId && (
+    <Dialog open={!!deleteConfirmId} onOpenChange={() => setDeleteConfirmId(null)}>
+      <DialogContent className="sm:max-w-[400px]">
+        <DialogHeader>
+          <DialogTitle>Delete AI Trader</DialogTitle>
+          <DialogDescription>
+            Are you sure you want to delete "{accountToDelete?.name}"? This action cannot be undone.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex gap-2 justify-end">
+          <Button variant="outline" onClick={() => setDeleteConfirmId(null)} disabled={deleting}>
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={() => handleDeleteAccount(deleteConfirmId)}
+            disabled={deleting}
+          >
+            {deleting ? 'Deleting...' : 'Delete'}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+
   if (embedded) {
-    return content
+    return (
+      <>
+        {content}
+        {confirmDialog}
+      </>
+    )
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
-        {content}
-      </DialogContent>
-    </Dialog>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-[600px]">
+          {content}
+        </DialogContent>
+      </Dialog>
+      {confirmDialog}
+    </>
   )
 }
 

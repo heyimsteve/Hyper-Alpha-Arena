@@ -26,7 +26,7 @@ export default function PriceTicker({ symbol, name }: PriceTickerProps) {
     }
 
     fetchPrice()
-    const interval = setInterval(fetchPrice, 1500) // 1.5 seconds
+    const interval = setInterval(fetchPrice, 5000) // 5 seconds (reduced from 1.5s to avoid rate limits)
 
     return () => clearInterval(interval)
   }, [symbol])

@@ -26,7 +26,7 @@ class MarketDataStream:
         self,
         symbols: Iterable[str],
         market: str = "CRYPTO",
-        interval_seconds: float = 1.5,
+        interval_seconds: float = 5.0,  # Increased from 1.5s to 5s to reduce API load
         retention_seconds: int = 3600,
     ) -> None:
         self.symbols = list(symbols)

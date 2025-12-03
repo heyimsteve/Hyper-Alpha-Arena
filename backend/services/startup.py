@@ -53,7 +53,7 @@ def initialize_services():
         # NOTE: Paper trading snapshot service disabled - using Hyperliquid snapshots only
         combined_symbols = build_market_stream_symbols()
         print("Starting market data stream...")
-        start_market_stream(combined_symbols, interval_seconds=1.5)
+        start_market_stream(combined_symbols, interval_seconds=5.0)  # Reduced frequency to avoid rate limits
         print("Market data stream started")
         # subscribe_price_updates(handle_price_update)  # DISABLED: Paper trading snapshot
         # print("Asset snapshot handler subscribed")

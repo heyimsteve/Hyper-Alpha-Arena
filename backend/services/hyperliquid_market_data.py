@@ -6,8 +6,31 @@ import logging
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timezone
 import time
+import random
 
 logger = logging.getLogger(__name__)
+
+# Rate limit handling configuration
+MAX_RETRIES = 3
+BASE_BACKOFF_SECONDS = 2.0
+MAX_BACKOFF_SECONDS = 60.0
+
+
+def _exponential_backoff_sleep(attempt: int, base_seconds: float = BASE_BACKOFF_SECONDS) -> float:
+    """Calculate and sleep with exponential backoff with jitter.
+    
+    Returns the actual sleep time for logging purposes.
+    """
+    # Calculate exponential backoff: base * 2^attempt
+    backoff = min(base_seconds * (2 ** attempt), MAX_BACKOFF_SECONDS)
+    # Add jitter (random 0-25% of backoff time)
+    jitter = random.uniform(0, backoff * 0.25)
+    sleep_time = backoff + jitter
+    
+    logger.info(f"Rate limit hit, sleeping for {sleep_time:.2f}s (attempt {attempt + 1}/{MAX_RETRIES})")
+    time.sleep(sleep_time)
+    return sleep_time
+
 
 class HyperliquidClient:
     def __init__(self, environment: str = "mainnet"):
@@ -56,101 +79,114 @@ class HyperliquidClient:
             logger.info("HIP3 market fetch disabled for market data client")
 
     def get_last_price(self, symbol: str) -> Optional[float]:
-        """Get the last price for a symbol"""
+        """Get the last price for a symbol using native Hyperliquid API"""
         try:
-            if not self.exchange:
-                self._initialize_exchange()
-
-            # Ensure symbol is in CCXT format (e.g., 'BTC/USD')
-            formatted_symbol = self._format_symbol(symbol)
-
-            ticker = self.exchange.fetch_ticker(formatted_symbol)
-            price = ticker['last']
-
-            logger.info(f"Got price for {formatted_symbol}: {price}")
-            return float(price) if price else None
-
+            # Use native Hyperliquid API directly to avoid CCXT HIP3 errors
+            ticker_result = self.get_ticker_data(symbol)
+            if ticker_result and 'price' in ticker_result:
+                price = ticker_result['price']
+                logger.info(f"Got price for {symbol}: {price}")
+                return float(price) if price else None
+            
+            logger.warning(f"No price data available for {symbol}")
+            return None
+            
         except Exception as e:
             logger.error(f"Error fetching price for {symbol}: {e}")
             return None
 
     def get_ticker_data(self, symbol: str) -> Optional[Dict[str, Any]]:
-        """Get complete ticker data using Hyperliquid native API"""
-        try:
-            import requests
+        """Get complete ticker data using Hyperliquid native API with retry logic"""
+        import requests
 
-            # Use environment-specific API endpoint
-            if self.environment == "testnet":
-                api_url = "https://api.hyperliquid-testnet.xyz/info"
-            else:
-                api_url = "https://api.hyperliquid.xyz/info"
+        # Use environment-specific API endpoint
+        if self.environment == "testnet":
+            api_url = "https://api.hyperliquid-testnet.xyz/info"
+        else:
+            api_url = "https://api.hyperliquid.xyz/info"
 
-            # Use Hyperliquid native API for complete market data
-            response = requests.post(
-                api_url,
-                json={"type": "metaAndAssetCtxs"},
-                timeout=10
-            )
-            response.raise_for_status()
-            data = response.json()
+        for attempt in range(MAX_RETRIES):
+            try:
+                # Use Hyperliquid native API for complete market data
+                response = requests.post(
+                    api_url,
+                    json={"type": "metaAndAssetCtxs"},
+                    timeout=10
+                )
+                response.raise_for_status()
+                data = response.json()
 
-            if not isinstance(data, list) or len(data) < 2:
-                raise Exception("Invalid API response structure")
+                if not isinstance(data, list) or len(data) < 2:
+                    raise Exception("Invalid API response structure")
 
-            # Find symbol index in universe (meta data)
-            symbol_upper = symbol.upper()
-            symbol_index = None
+                # Find symbol index in universe (meta data)
+                symbol_upper = symbol.upper()
+                symbol_index = None
 
-            if isinstance(data[0], dict) and 'universe' in data[0]:
-                for i, asset_meta in enumerate(data[0]['universe']):
-                    if isinstance(asset_meta, dict):
-                        asset_name = asset_meta.get('name', '').upper()
-                        if asset_name == symbol_upper or asset_name == symbol_upper.replace('/', ''):
-                            symbol_index = i
-                            break
+                if isinstance(data[0], dict) and 'universe' in data[0]:
+                    for i, asset_meta in enumerate(data[0]['universe']):
+                        if isinstance(asset_meta, dict):
+                            asset_name = asset_meta.get('name', '').upper()
+                            if asset_name == symbol_upper or asset_name == symbol_upper.replace('/', ''):
+                                symbol_index = i
+                                break
 
-            if symbol_index is None or symbol_index >= len(data[1]):
-                # Fallback to CCXT for unsupported symbols
+                if symbol_index is None or symbol_index >= len(data[1]):
+                    # Fallback to CCXT for unsupported symbols
+                    return self._get_ccxt_ticker_fallback(symbol)
+
+                # Get asset data by index
+                asset_data = data[1][symbol_index]
+                if not isinstance(asset_data, dict):
+                    return self._get_ccxt_ticker_fallback(symbol)
+
+                # Extract data from Hyperliquid API
+                mark_px = float(asset_data.get('markPx', 0))
+                oracle_px = float(asset_data.get('oraclePx', 0))
+                prev_day_px = float(asset_data.get('prevDayPx', 0))
+                day_ntl_vlm = float(asset_data.get('dayNtlVlm', 0))
+                open_interest = float(asset_data.get('openInterest', 0))
+                funding_rate = float(asset_data.get('funding', 0))
+
+                # Calculate 24h change
+                change_24h = mark_px - prev_day_px if prev_day_px else 0
+                percentage_24h = (change_24h / prev_day_px * 100) if prev_day_px else 0
+
+                # Convert open interest to USD value (OI * price)
+                open_interest_usd = open_interest * mark_px
+
+                result = {
+                    'symbol': symbol,
+                    'price': mark_px,
+                    'oracle_price': oracle_px,
+                    'change24h': change_24h,
+                    'volume24h': day_ntl_vlm,
+                    'percentage24h': percentage_24h,
+                    'open_interest': open_interest_usd,
+                    'funding_rate': funding_rate,
+                }
+
+                logger.info(f"Got Hyperliquid ticker for {symbol}: price={result['price']}, change24h={result['change24h']:.2f}")
+                return result
+
+            except requests.exceptions.HTTPError as http_err:
+                # Check for 429 rate limit error
+                if http_err.response.status_code == 429:
+                    if attempt < MAX_RETRIES - 1:
+                        _exponential_backoff_sleep(attempt)
+                        continue  # Retry
+                    else:
+                        logger.error(f"Rate limit exceeded for {symbol} after {MAX_RETRIES} attempts")
+                        return self._get_ccxt_ticker_fallback(symbol)
+                # Other HTTP errors
+                logger.error(f"HTTP error fetching Hyperliquid ticker for {symbol}: {http_err}")
+                return self._get_ccxt_ticker_fallback(symbol)
+            except Exception as e:
+                logger.error(f"Error fetching Hyperliquid ticker for {symbol}: {e}")
                 return self._get_ccxt_ticker_fallback(symbol)
 
-            # Get asset data by index
-            asset_data = data[1][symbol_index]
-            if not isinstance(asset_data, dict):
-                return self._get_ccxt_ticker_fallback(symbol)
-
-            # Extract data from Hyperliquid API
-            mark_px = float(asset_data.get('markPx', 0))
-            oracle_px = float(asset_data.get('oraclePx', 0))
-            prev_day_px = float(asset_data.get('prevDayPx', 0))
-            day_ntl_vlm = float(asset_data.get('dayNtlVlm', 0))
-            open_interest = float(asset_data.get('openInterest', 0))
-            funding_rate = float(asset_data.get('funding', 0))
-
-            # Calculate 24h change
-            change_24h = mark_px - prev_day_px if prev_day_px else 0
-            percentage_24h = (change_24h / prev_day_px * 100) if prev_day_px else 0
-
-            # Convert open interest to USD value (OI * price)
-            open_interest_usd = open_interest * mark_px
-
-            result = {
-                'symbol': symbol,
-                'price': mark_px,
-                'oracle_price': oracle_px,
-                'change24h': change_24h,
-                'volume24h': day_ntl_vlm,
-                'percentage24h': percentage_24h,
-                'open_interest': open_interest_usd,
-                'funding_rate': funding_rate,
-            }
-
-            logger.info(f"Got Hyperliquid ticker for {symbol}: price={result['price']}, change24h={result['change24h']:.2f}")
-            return result
-
-        except Exception as e:
-            logger.error(f"Error fetching Hyperliquid ticker for {symbol}: {e}")
-            # Fallback to CCXT
-            return self._get_ccxt_ticker_fallback(symbol)
+        # Should not reach here, but fallback just in case
+        return self._get_ccxt_ticker_fallback(symbol)
 
     def _get_ccxt_ticker_fallback(self, symbol: str) -> Optional[Dict[str, Any]]:
         """Fallback to CCXT ticker for unsupported symbols"""
@@ -159,6 +195,15 @@ class HyperliquidClient:
                 self._initialize_exchange()
 
             formatted_symbol = self._format_symbol(symbol)
+            
+            # Pre-load markets to avoid lazy loading issues with HIP3
+            try:
+                self.exchange.load_markets(reload=False)
+            except KeyError as market_err:
+                if 'hip3TokensByName' not in str(market_err):
+                    raise
+                logger.debug(f"Ignoring HIP3 metadata error in CCXT fallback: {market_err}")
+            
             ticker = self.exchange.fetch_ticker(formatted_symbol)
 
             result = {
@@ -169,6 +214,12 @@ class HyperliquidClient:
                 'percentage24h': float(ticker['percentage']) if ticker['percentage'] else 0,
             }
             return result
+        except KeyError as e:
+            if 'hip3TokensByName' in str(e):
+                logger.warning(f"CCXT HIP3 metadata error in fallback for {symbol}: {e}")
+                return None
+            logger.error(f"CCXT fallback failed for {symbol}: {e}")
+            return None
         except Exception as e:
             logger.error(f"CCXT fallback failed for {symbol}: {e}")
             return None
@@ -188,6 +239,14 @@ class HyperliquidClient:
                 self._initialize_exchange()
 
             formatted_symbol = self._format_symbol(symbol)
+            
+            # Pre-load markets to avoid lazy loading issues with HIP3
+            try:
+                self.exchange.load_markets(reload=False)
+            except KeyError as market_err:
+                if 'hip3TokensByName' not in str(market_err):
+                    raise
+            
             ticker = self.exchange.fetch_ticker(formatted_symbol)
             price = ticker['last']
 
@@ -319,7 +378,14 @@ class HyperliquidClient:
             formatted_symbol = self._format_symbol(symbol)
             
             # Hyperliquid is 24/7, but we can check if the market exists
-            markets = self.exchange.load_markets()
+            try:
+                markets = self.exchange.load_markets()
+            except KeyError as market_err:
+                if 'hip3TokensByName' not in str(market_err):
+                    raise
+                logger.debug(f"Ignoring HIP3 metadata error in get_market_status: {market_err}")
+                markets = self.exchange.markets  # Use already loaded markets
+            
             market_exists = formatted_symbol in markets
             
             status = {
@@ -355,7 +421,14 @@ class HyperliquidClient:
             if not self.exchange:
                 self._initialize_exchange()
             
-            markets = self.exchange.load_markets()
+            try:
+                markets = self.exchange.load_markets()
+            except KeyError as market_err:
+                if 'hip3TokensByName' not in str(market_err):
+                    raise
+                logger.debug(f"Ignoring HIP3 metadata error in get_all_symbols: {market_err}")
+                markets = self.exchange.markets  # Use already loaded markets
+            
             symbols = list(markets.keys())
             
             # Filter for USDC pairs (both spot and perpetual)
