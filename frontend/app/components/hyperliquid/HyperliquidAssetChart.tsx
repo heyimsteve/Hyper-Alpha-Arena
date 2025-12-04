@@ -59,9 +59,15 @@ export default function HyperliquidAssetChart({
   const [error, setError] = useState<string | null>(null)
   const [logoPulseMap, setLogoPulseMap] = useState<Map<number, number>>(new Map())
   const [timeRange, setTimeRange] = useState<'7d' | '15d' | '1m' | '3m' | 'all'>('7d')
+  const fetchingRef = useRef(false)
 
   // Fetch Hyperliquid asset curve data (5-minute bucketed)
   const fetchData = useCallback(async () => {
+    // Prevent duplicate requests
+    if (fetchingRef.current) {
+      return
+    }
+    fetchingRef.current = true
     try {
       setLoading(true)
       setError(null)
@@ -111,11 +117,17 @@ export default function HyperliquidAssetChart({
       setError(err instanceof Error ? err.message : 'Failed to load data')
     } finally {
       setLoading(false)
+      fetchingRef.current = false
     }
   }, [environment, selectedAccount, timeRange])
 
   useEffect(() => {
-    fetchData()
+    // Debounce: wait 300ms before fetching to avoid rapid successive calls
+    const timeoutId = setTimeout(() => {
+      fetchData()
+    }, 300)
+
+    return () => clearTimeout(timeoutId)
   }, [fetchData, refreshTrigger])
 
   // Process chart data
