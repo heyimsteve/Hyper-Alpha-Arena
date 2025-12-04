@@ -1167,6 +1167,12 @@ def call_ai_for_decision(
     if "gpt-5" in model_lower:
         payload["reasoning_effort"] = "low"
 
+    # Enable streaming for deepseek-reasoner to handle high-load scenarios
+    # DeepSeek official recommendation: use streaming to avoid 30s timeout during high load
+    use_streaming = (account.model == "deepseek-reasoner")
+    if use_streaming:
+        payload["stream"] = True
+
     try:
         endpoints = build_chat_completion_endpoints(account.base_url, account.model)
         if not endpoints:
@@ -1178,16 +1184,14 @@ def call_ai_for_decision(
             )
             return None
 
-        # Retry logic for rate limiting
+        # Retry logic for rate limiting and transient errors
         max_retries = 3
         response = None
         success = False
 
         # Reasoning models need longer timeout (they think more, respond slower)
-        # For unknown models (not in our hardcoded list), use conservative longer timeout
-        # Better to wait longer than to fail due to timeout
         if is_reasoning_model:
-            request_timeout = 240  # Known reasoning models (increased for slow reasoning models)
+            request_timeout = 240
         else:
             # Unknown models: use 120s as conservative default
             # This handles custom model names, future models, and proxy services
@@ -1202,6 +1206,7 @@ def call_ai_for_decision(
                         json=payload,
                         timeout=request_timeout,
                         verify=False,  # Disable SSL verification for custom AI endpoints
+                        stream=use_streaming,  # Enable streaming reception for deepseek-reasoner
                     )
 
                     if response.status_code == 200:
@@ -1275,7 +1280,62 @@ def call_ai_for_decision(
             )
             return None
 
-        result = response.json()
+        # Handle streaming response for deepseek-reasoner
+        if use_streaming:
+            try:
+                full_content = ""
+                reasoning_content = ""
+                chunk_count = 0
+
+                # Parse SSE stream
+                for line in response.iter_lines():
+                    if line:
+                        line_str = line.decode('utf-8')
+
+                        # SSE format: "data: {...}"
+                        if line_str.startswith('data: '):
+                            json_str = line_str[6:]  # Remove "data: " prefix
+
+                            # Check for [DONE] marker
+                            if json_str.strip() == '[DONE]':
+                                break
+
+                            try:
+                                data = json.loads(json_str)
+                                chunk_count += 1
+
+                                # Extract content from delta
+                                if data.get('choices'):
+                                    delta = data['choices'][0].get('delta', {})
+                                    content = delta.get('content') or ''
+                                    reasoning = delta.get('reasoning_content') or ''
+
+                                    full_content += content
+                                    reasoning_content += reasoning
+
+                            except json.JSONDecodeError as e:
+                                logger.warning(f"JSON decode error in streaming response: {e}")
+                                continue
+
+                # Construct complete response object (simulate non-streaming format)
+                result = {
+                    "choices": [{
+                        "message": {
+                            "content": full_content,
+                            "reasoning_content": reasoning_content
+                        },
+                        "finish_reason": "stop"
+                    }]
+                }
+
+                logger.info(f"Streaming response completed: {chunk_count} chunks, content: {len(full_content)} chars, reasoning: {len(reasoning_content)} chars")
+
+            except Exception as stream_err:
+                logger.error(f"Failed to parse streaming response: {stream_err}")
+                return None
+        else:
+            # Non-streaming response (existing logic)
+            result = response.json()
 
         # Extract text from OpenAI-compatible response format
         if "choices" in result and len(result["choices"]) > 0:
@@ -1394,6 +1454,10 @@ def call_ai_for_decision(
             if not text_content and reasoning_text:
                 # Some providers keep reasoning separately even on normal completion
                 text_content = reasoning_text
+            elif not text_content and api_reasoning_content:
+                # Fallback: DeepSeek Reasoner may put JSON in reasoning_content
+                text_content = api_reasoning_content
+                logger.info("Using reasoning_content as fallback for empty content (DeepSeek Reasoner)")
 
             if not text_content:
                 logger.error(
