@@ -809,7 +809,7 @@ class HyperliquidTradingClient:
             logger.error(f"Failed to get recent closed trades: {e}", exc_info=True)
             return []
 
-    def get_open_orders(self, db: Session) -> List[Dict[str, Any]]:
+    def get_open_orders(self, db: Session, symbol: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         Get current open orders (unfilled/partially filled orders)
 
@@ -819,6 +819,7 @@ class HyperliquidTradingClient:
 
         Args:
             db: Database session (for environment validation)
+            symbol: Optional symbol filter (e.g., "BTC"). If None, returns all symbols.
 
         Returns:
             List of open order dicts with fields:
@@ -906,16 +907,22 @@ class HyperliquidTradingClient:
             # Sort by timestamp (newest first)
             orders.sort(key=lambda x: x.get('timestamp', 0), reverse=True)
 
+            # Filter by symbol if specified
+            if symbol:
+                orders = [o for o in orders if o.get('symbol') == symbol]
+                logger.debug(f"Filtered to {len(orders)} orders for symbol {symbol}")
+
             logger.info(f"Found {len(orders)} open orders")
 
             self._record_exchange_action(
                 action_type="fetch_open_orders",
                 status="success",
-                symbol=None,
+                symbol=symbol,
                 request_payload={
                     "account_id": self.account_id,
                     "wallet_address": self.wallet_address,
                     "environment": self.environment,
+                    "symbol_filter": symbol,
                 },
                 response_payload=None,
             )
@@ -926,11 +933,12 @@ class HyperliquidTradingClient:
             self._record_exchange_action(
                 action_type="fetch_open_orders",
                 status="error",
-                symbol=None,
+                symbol=symbol,
                 request_payload={
                     "account_id": self.account_id,
                     "wallet_address": self.wallet_address,
                     "environment": self.environment,
+                    "symbol_filter": symbol,
                 },
                 response_payload=None,
                 error_message=str(e),
@@ -1326,16 +1334,19 @@ class HyperliquidTradingClient:
             logger.error(f"[CANCEL] Failed to cancel order: {e}", exc_info=True)
             raise
 
-    def get_open_orders(self, db: Session, symbol: Optional[str] = None) -> List[Dict[str, Any]]:
+    def _get_open_orders_raw(self, db: Session, symbol: Optional[str] = None) -> List[Dict[str, Any]]:
         """
-        Get all open orders (including TP/SL trigger orders) from Hyperliquid
+        Get all open orders (including TP/SL trigger orders) from Hyperliquid - returns raw SDK data
+
+        INTERNAL USE ONLY: This method returns raw SDK data format for TP/SL management.
+        For formatted order data, use get_open_orders() instead.
 
         Args:
             db: Database session
             symbol: Optional symbol filter (e.g., "BTC"). If None, returns all symbols.
 
         Returns:
-            List of open order dicts, each with:
+            List of open order dicts with raw SDK fields:
                 - oid: Order ID
                 - coin: Symbol name
                 - side: "B" (buy) or "A" (sell/ask)
@@ -1352,7 +1363,7 @@ class HyperliquidTradingClient:
         self._validate_environment(db)
 
         try:
-            logger.info(f"Fetching open orders for wallet {self.wallet_address} on {self.environment}")
+            logger.info(f"Fetching raw open orders for wallet {self.wallet_address} on {self.environment}")
 
             # Use SDK Info to get open orders (frontend_open_orders includes trigger orders)
             open_orders = self.sdk_info.frontend_open_orders(self.wallet_address)
@@ -1365,7 +1376,7 @@ class HyperliquidTradingClient:
                 logger.debug(f"Filtered to {len(open_orders)} orders for symbol {symbol}")
 
             self._record_exchange_action(
-                action_type="fetch_open_orders",
+                action_type="fetch_open_orders_raw",
                 status="success",
                 symbol=symbol,
                 request_payload={
@@ -1380,7 +1391,7 @@ class HyperliquidTradingClient:
 
         except Exception as e:
             self._record_exchange_action(
-                action_type="fetch_open_orders",
+                action_type="fetch_open_orders_raw",
                 status="error",
                 symbol=symbol,
                 request_payload={
@@ -1390,7 +1401,7 @@ class HyperliquidTradingClient:
                 },
                 error_message=str(e),
             )
-            logger.error(f"Failed to get open orders: {e}", exc_info=True)
+            logger.error(f"Failed to get raw open orders: {e}", exc_info=True)
             raise
 
     def get_tpsl_orders(self, db: Session, symbol: str) -> Dict[str, Optional[Dict[str, Any]]]:
@@ -1408,7 +1419,7 @@ class HyperliquidTradingClient:
                 - all_tp_orders: List of ALL TP orders found
                 - all_sl_orders: List of ALL SL orders found
         """
-        open_orders = self.get_open_orders(db, symbol)
+        open_orders = self._get_open_orders_raw(db, symbol)
         
         # Debug: log all open orders to understand structure
         import sys
