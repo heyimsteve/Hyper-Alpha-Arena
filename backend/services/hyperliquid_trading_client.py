@@ -1858,15 +1858,15 @@ class HyperliquidTradingClient:
                         if tp_result.get("status") == "ok":
                             result['tp_updated'] = True
                             result['new_tp'] = rounded_tp
-                            logger.info(f"[TPSL] Placed new TP order for {symbol} at ${rounded_tp}")
+                            logger.info(f"[TPSL]BF Placed new TP order for {symbol} at ${rounded_tp}")
                         else:
                             error_msg = tp_result.get("response", "Unknown error")
-                            result['errors'].append(f"Failed to place new TP: {error_msg}")
-                            logger.error(f"[TPSL] Failed to place new TP order: {error_msg}")
+                            result['errors'].append(f"Failed to place new TP BF: {error_msg}")
+                            logger.error(f"[TPSL]BF Failed to place new TP order: {error_msg}")
 
                     except Exception as tp_err:
-                        result['errors'].append(f"TP order error: {str(tp_err)}")
-                        logger.error(f"[TPSL] Error placing TP order: {tp_err}", exc_info=True)
+                        result['errors'].append(f"TP BF order error: {str(tp_err)}")
+                        logger.error(f"[TPSL]BF Error placing TP order: {tp_err}", exc_info=True)
 
             # Cancel and replace SL if needed
             if sl_needs_update:
@@ -1951,15 +1951,15 @@ class HyperliquidTradingClient:
                         if sl_result.get("status") == "ok":
                             result['sl_updated'] = True
                             result['new_sl'] = rounded_sl
-                            logger.info(f"[TPSL] Placed new SL order for {symbol} at ${rounded_sl}")
+                            logger.info(f"[TPSL]BF Placed new SL order for {symbol} at ${rounded_sl}")
                         else:
                             error_msg = sl_result.get("response", "Unknown error")
-                            result['errors'].append(f"Failed to place new SL: {error_msg}")
-                            logger.error(f"[TPSL] Failed to place new SL order: {error_msg}")
+                            result['errors'].append(f"Failed to place new SL BF: {error_msg}")
+                            logger.error(f"[TPSL]BF Failed to place new SL order: {error_msg}")
 
                     except Exception as sl_err:
-                        result['errors'].append(f"SL order error: {str(sl_err)}")
-                        logger.error(f"[TPSL] Error placing SL order: {sl_err}", exc_info=True)
+                        result['errors'].append(f"SL BF order error: {str(sl_err)}")
+                        logger.error(f"[TPSL]BF Error placing SL order: {sl_err}", exc_info=True)
 
             # Set overall success based on errors
             if result['errors']:
@@ -2633,7 +2633,7 @@ class HyperliquidTradingClient:
 
             main_result = self.sdk_exchange.order(**main_order_params)
 
-            logger.info(f"[SDK] Main order result: {main_result}")
+            logger.info(f"[SDK] BF Main order result: {main_result}")
 
             # Parse main order result
             order_status = main_result.get("status", "error")
@@ -2705,7 +2705,7 @@ class HyperliquidTradingClient:
 
                         tp_result = self.sdk_exchange.order(**tp_order_params)
 
-                        logger.info(f"[SDK] TP order result: {tp_result}")
+                        logger.info(f"[SDK] BF TP order result: {tp_result}")
 
                         if tp_result.get("status") == "ok":
                             tp_statuses = tp_result.get("response", {}).get("data", {}).get("statuses", [])
@@ -2716,7 +2716,7 @@ class HyperliquidTradingClient:
                                 elif "filled" in tp_status:
                                     tp_order_id = str(tp_status["filled"].get("oid", ""))
                     except Exception as tp_err:
-                        logger.error(f"[SDK] Failed to place TP order: {tp_err}", exc_info=True)
+                        logger.error(f"[SDK] BF Failed to place TP order: {tp_err}", exc_info=True)
 
                 # Place SL order
                 if stop_loss_price:
@@ -2746,7 +2746,7 @@ class HyperliquidTradingClient:
 
                         sl_result = self.sdk_exchange.order(**sl_order_params)
 
-                        logger.info(f"[SDK] SL order result: {sl_result}")
+                        logger.info(f"[SDK] BF SL order result: {sl_result}")
 
                         if sl_result.get("status") == "ok":
                             sl_statuses = sl_result.get("response", {}).get("data", {}).get("statuses", [])
@@ -2757,7 +2757,7 @@ class HyperliquidTradingClient:
                                 elif "filled" in sl_status:
                                     sl_order_id = str(sl_status["filled"].get("oid", ""))
                     except Exception as sl_err:
-                        logger.error(f"[SDK] Failed to place SL order: {sl_err}", exc_info=True)
+                        logger.error(f"[SDK] BF Failed to place SL order: {sl_err}", exc_info=True)
 
             # Construct result
             order_result = {
