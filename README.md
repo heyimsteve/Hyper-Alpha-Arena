@@ -7,14 +7,14 @@
 [![GitHub forks](https://img.shields.io/github/forks/HammerGPT/Hyper-Alpha-Arena)](https://github.com/HammerGPT/Hyper-Alpha-Arena/network)
 [![Community](https://img.shields.io/badge/Telegram-Community-blue?logo=telegram)](https://t.me/+RqxjT7Gttm9hOGEx)
 
-## 🔥 Start Trading Now - Up to 30% Fee Discount
+## 🔥 Start Trading Now - Up to 4% Fee Discount
 
 Ready to put your AI trading strategies to work? Get started with these top exchanges:
 
 ### 🚀 **Hyperliquid** - Decentralized Perpetual Exchange
 - **No KYC Required** | **Low Fees** | **High Performance**
 - Direct integration with Hyper Alpha Arena
-- [**Open Futures Trading →**](https://app.hyperliquid.xyz/join/HYPERSVIP)
+- [**Open Futures Trading →**](https://app.hyperliquid.xyz/join/AGN)
 
 ### 💰 **Binance** - World's Largest Exchange
 - **30% Fee Discount** | **High Liquidity** | **Advanced Tools**
