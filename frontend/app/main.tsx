@@ -210,18 +210,25 @@ function App() {
   const authCheckedRef = useRef(false)
 
   // Debug function to manually trigger authorization modal
+  // Uses negative IDs to avoid conflicts with real accounts
   useEffect(() => {
     (window as any).__debugShowAuthModal = (mockData?: UnauthorizedAccount[]) => {
       const testAccounts = mockData || [{
-        account_id: 999,
+        account_id: -999,
         account_name: 'Test Account (Debug)',
         wallet_address: '0x0000000000000000000000000000000000000000',
         max_fee: 0,
         required_fee: 30
       }]
-      setUnauthorizedAccounts(testAccounts)
+      // Force negative IDs to prevent affecting real accounts
+      const safeAccounts = testAccounts.map((acc, idx) => ({
+        ...acc,
+        account_id: acc.account_id > 0 ? -(idx + 900) : acc.account_id
+      }))
+      setUnauthorizedAccounts(safeAccounts)
       setAuthModalOpen(true)
-      console.log('[Debug] Authorization modal opened with accounts:', testAccounts)
+      console.log('[Debug] Authorization modal opened with SAFE accounts (negative IDs):', safeAccounts)
+      console.warn('[Debug] Note: Positive account_ids are converted to negative to prevent affecting real accounts')
     }
     return () => {
       delete (window as any).__debugShowAuthModal
