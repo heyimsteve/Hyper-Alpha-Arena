@@ -7,7 +7,7 @@
 [![GitHub forks](https://img.shields.io/github/forks/HammerGPT/Hyper-Alpha-Arena)](https://github.com/HammerGPT/Hyper-Alpha-Arena/network)
 [![Community](https://img.shields.io/badge/Telegram-Community-blue?logo=telegram)](https://t.me/+RqxjT7Gttm9hOGEx)
 
-## 🔥 Start Trading Now - Up to 30% Fee Discount
+## 🔥 Start Trading Now - Up to 4% Fee Discount
 
 Ready to put your AI trading strategies to work? Get started with these top exchanges:
 

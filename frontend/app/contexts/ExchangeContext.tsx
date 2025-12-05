@@ -72,7 +72,7 @@ export function ExchangeProvider({ children }: ExchangeProviderProps) {
       logo: '/static/hyperliquid_logo.png',
       description: 'Decentralized perpetual futures exchange',
       features: ['No KYC Required', 'Low Fees', 'High Performance'],
-      referralLink: 'https://app.hyperliquid.xyz/join/HYPERSVIP',
+      referralLink: 'https://app.hyperliquid.xyz/join/AGN',
       buttonText: 'Open Futures',
       buttonVariant: 'default'
     },

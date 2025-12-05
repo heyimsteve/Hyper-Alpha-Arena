@@ -91,7 +91,7 @@ export default function Header({ title = 'Hyper Alpha Arena', currentAccount, sh
             {currentExchangeInfo.displayName}
             <ChevronDown className="ml-2 h-3 w-3" />
           </Button>
-          <span className="text-xs text-muted-foreground ml-2">Up to 30% fee discount</span>
+          <span className="text-xs text-muted-foreground ml-2">Up to 4% fee discount</span>
         </div>
 
         <div className="flex items-center gap-3">
