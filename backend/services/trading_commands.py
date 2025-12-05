@@ -31,7 +31,7 @@ from services.hyperliquid_symbol_service import (
     get_available_symbol_map as get_hyperliquid_symbol_map,
     get_symbol_display as get_hyperliquid_symbol_display,
 )
-
+from services.hyperliquid_environment import get_leverage_settings
 
 logger = logging.getLogger(__name__)
 
@@ -587,13 +587,22 @@ def place_ai_driven_hyperliquid_order(
                     save_ai_decision(db, account, decision, portfolio, executed=False, **decision_kwargs)
                     continue
 
-                max_leverage = getattr(account, "max_leverage", 3)
+                # Get leverage settings from wallet (new architecture) or account (fallback)
+                try:
+                    leverage_settings = get_leverage_settings(db, account.id, environment)
+                    max_leverage = leverage_settings["max_leverage"]
+                    default_leverage_setting = leverage_settings["default_leverage"]
+                except Exception as lev_err:
+                    logger.warning(f"Failed to get leverage settings: {lev_err}, using defaults")
+                    max_leverage = getattr(account, "max_leverage", 3) or 3
+                    default_leverage_setting = getattr(account, "default_leverage", 1) or 1
+
                 if leverage < 1 or leverage > max_leverage:
                     logger.warning(
                         f"Invalid leverage {leverage}x from AI (max: {max_leverage}x), "
-                        f"using default {getattr(account, 'default_leverage', 1)}x"
+                        f"using default {default_leverage_setting}x"
                     )
-                    leverage = getattr(account, "default_leverage", 1)
+                    leverage = default_leverage_setting
 
                 if target_portion <= 0 or target_portion > 1:
                     logger.warning(f"Invalid target_portion {target_portion} from AI for {account.name}")
@@ -670,19 +679,23 @@ def place_ai_driven_hyperliquid_order(
                         stop_loss_price=stop_loss_price
                     )
 
-                    # Fallback: If IOC failed due to no liquidity, retry with GTC
+                    # Fallback: If IOC failed due to no liquidity, retry with GTC at market price
                     if order_result and order_result.get('status') == 'error':
                         error_msg = order_result.get('error', '')
                         if 'could not immediately match' in error_msg.lower() or 'no resting orders' in error_msg.lower():
+                            # Use market price with small slippage for better execution
+                            market_price = prices.get(symbol, price_to_use)
+                            fallback_price = market_price * 1.001  # +0.1% slippage for BUY
                             logger.warning(
-                                f"⚠️  IOC order failed for BUY {symbol} (no liquidity), retrying with GTC limit order..."
+                                f"⚠️  IOC order failed for BUY {symbol} (no liquidity), retrying with GTC at market price "
+                                f"${fallback_price:.2f} (market=${market_price:.2f}, original=${price_to_use:.2f})"
                             )
                             order_result = client.place_order_with_tpsl(
                                 db=db,
                                 symbol=symbol,
                                 is_buy=True,
                                 size=quantity,
-                                price=price_to_use,
+                                price=fallback_price,
                                 leverage=leverage,
                                 time_in_force="Gtc",  # Changed from Ioc to Gtc
                                 reduce_only=False,
@@ -690,7 +703,7 @@ def place_ai_driven_hyperliquid_order(
                                 stop_loss_price=stop_loss_price
                             )
                             if order_result and order_result.get('status') in ['filled', 'resting']:
-                                logger.info(f"✅ GTC fallback order succeeded for BUY {symbol}")
+                                logger.info(f"✅ GTC fallback order succeeded for BUY {symbol} at ${fallback_price:.2f}")
 
                 elif operation == "sell":
                     # Calculate margin first, then position value with leverage
@@ -754,19 +767,23 @@ def place_ai_driven_hyperliquid_order(
                         stop_loss_price=stop_loss_price
                     )
 
-                    # Fallback: If IOC failed due to no liquidity, retry with GTC
+                    # Fallback: If IOC failed due to no liquidity, retry with GTC at market price
                     if order_result and order_result.get('status') == 'error':
                         error_msg = order_result.get('error', '')
                         if 'could not immediately match' in error_msg.lower() or 'no resting orders' in error_msg.lower():
+                            # Use market price with small slippage for better execution
+                            market_price = prices.get(symbol, price_to_use)
+                            fallback_price = market_price * 0.999  # -0.1% slippage for SELL
                             logger.warning(
-                                f"⚠️  IOC order failed for SELL {symbol} (no liquidity), retrying with GTC limit order..."
+                                f"⚠️  IOC order failed for SELL {symbol} (no liquidity), retrying with GTC at market price "
+                                f"${fallback_price:.2f} (market=${market_price:.2f}, original=${price_to_use:.2f})"
                             )
                             order_result = client.place_order_with_tpsl(
                                 db=db,
                                 symbol=symbol,
                                 is_buy=False,
                                 size=quantity,
-                                price=price_to_use,
+                                price=fallback_price,
                                 leverage=leverage,
                                 time_in_force="Gtc",  # Changed from Ioc to Gtc
                                 reduce_only=False,
@@ -774,7 +791,7 @@ def place_ai_driven_hyperliquid_order(
                                 stop_loss_price=stop_loss_price
                             )
                             if order_result and order_result.get('status') in ['filled', 'resting']:
-                                logger.info(f"✅ GTC fallback order succeeded for SELL {symbol}")
+                                logger.info(f"✅ GTC fallback order succeeded for SELL {symbol} at ${fallback_price:.2f}")
 
                 elif operation == "close":
                     position_to_close = None

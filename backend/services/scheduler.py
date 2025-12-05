@@ -113,7 +113,10 @@ class TaskScheduler:
             args=args,
             kwargs=kwargs,
             id=task_id,
-            replace_existing=True
+            replace_existing=True,
+            max_instances=1,       # Avoid duplicate execution
+            coalesce=True,         # Combine missed executions into one
+            misfire_grace_time=5   # Allow 5 seconds grace time for late execution
         )
         
         logger.info(f"Added interval task {task_id}: Execute every {interval_seconds} seconds")
@@ -151,6 +154,9 @@ class TaskScheduler:
     def _execute_account_snapshot(self, account_id: int):
         """
         Internal method to execute account snapshot update
+
+        Note: This method is called by APScheduler's BackgroundScheduler which is synchronous.
+        Do NOT make this method async - APScheduler cannot await coroutines.
 
         Args:
             account_id: Account ID
