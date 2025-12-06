@@ -9,6 +9,8 @@ import {
   getArenaPositions,
   getArenaTrades,
   getAccounts,
+  getModelChatSnapshots,
+  ModelChatSnapshots,
 } from '@/lib/api'
 import { useArenaData } from '@/contexts/ArenaDataContext'
 import { useTradingMode } from '@/contexts/TradingModeContext'
@@ -85,6 +87,10 @@ export default function AlphaArenaFeed({
   // Lazy loading states for ModelChat
   const [hasMoreModelChat, setHasMoreModelChat] = useState(true)
   const [isLoadingMoreModelChat, setIsLoadingMoreModelChat] = useState(false)
+
+  // Snapshot lazy loading cache and states
+  const snapshotCache = useRef<Map<number, ModelChatSnapshots>>(new Map())
+  const [loadingSnapshots, setLoadingSnapshots] = useState<Set<number>>(new Set())
 
   // Track seen items for highlight animation
   const seenTradeIds = useRef<Set<number>>(new Set())
@@ -569,6 +575,53 @@ export default function AlphaArenaFeed({
   const isSectionCopied = (entryId: number, section: 'prompt' | 'reasoning' | 'decision') =>
     !!copiedSections[`${entryId}-${section}`]
 
+  // Load snapshots for a specific entry when expanded
+  const loadSnapshots = useCallback(async (entryId: number) => {
+    // Skip if already cached or loading
+    if (snapshotCache.current.has(entryId) || loadingSnapshots.has(entryId)) {
+      return
+    }
+
+    setLoadingSnapshots((prev) => new Set(prev).add(entryId))
+
+    try {
+      const snapshots = await getModelChatSnapshots(entryId)
+      snapshotCache.current.set(entryId, snapshots)
+
+      // Update the modelChat entry with snapshot data
+      setModelChat((prev) =>
+        prev.map((entry) =>
+          entry.id === entryId
+            ? {
+                ...entry,
+                prompt_snapshot: snapshots.prompt_snapshot,
+                reasoning_snapshot: snapshots.reasoning_snapshot,
+                decision_snapshot: snapshots.decision_snapshot,
+              }
+            : entry
+        )
+      )
+    } catch (err) {
+      console.error(`[AlphaArenaFeed] Failed to load snapshots for entry ${entryId}:`, err)
+    } finally {
+      setLoadingSnapshots((prev) => {
+        const next = new Set(prev)
+        next.delete(entryId)
+        return next
+      })
+    }
+  }, [loadingSnapshots])
+
+  // Get snapshot data for an entry (from cache or entry itself)
+  const getSnapshotData = useCallback((entry: ArenaModelChatEntry) => {
+    const cached = snapshotCache.current.get(entry.id)
+    return {
+      prompt_snapshot: cached?.prompt_snapshot ?? entry.prompt_snapshot,
+      reasoning_snapshot: cached?.reasoning_snapshot ?? entry.reasoning_snapshot,
+      decision_snapshot: cached?.decision_snapshot ?? entry.decision_snapshot,
+    }
+  }, [])
+
   return (
     <div className="flex flex-col flex-1 min-h-0">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
@@ -738,6 +791,9 @@ export default function AlphaArenaFeed({
                                   })
                                   return nextState
                                 })
+                              } else {
+                                // Load snapshots when expanding
+                                loadSnapshots(entry.id)
                               }
                               return next
                             })
@@ -770,25 +826,29 @@ export default function AlphaArenaFeed({
                         </div>
                         {isExpanded && (
                           <div className="space-y-2 pt-3">
-                            {[{
-                              label: 'USER_PROMPT' as const,
-                              section: 'prompt' as const,
-                              content: entry.prompt_snapshot,
-                              empty: 'No prompt available',
-                            }, {
-                              label: 'CHAIN_OF_THOUGHT' as const,
-                              section: 'reasoning' as const,
-                              content: entry.reasoning_snapshot,
-                              empty: 'No reasoning available',
-                            }, {
-                              label: 'TRADING_DECISIONS' as const,
-                              section: 'decision' as const,
-                              content: entry.decision_snapshot,
-                              empty: 'No decision payload available',
-                            }].map(({ label, section, content, empty }) => {
+                            {(() => {
+                              const snapshots = getSnapshotData(entry)
+                              const isLoadingEntry = loadingSnapshots.has(entry.id)
+                              return [{
+                                label: 'USER_PROMPT' as const,
+                                section: 'prompt' as const,
+                                content: snapshots.prompt_snapshot,
+                                empty: 'No prompt available',
+                              }, {
+                                label: 'CHAIN_OF_THOUGHT' as const,
+                                section: 'reasoning' as const,
+                                content: snapshots.reasoning_snapshot,
+                                empty: 'No reasoning available',
+                              }, {
+                                label: 'TRADING_DECISIONS' as const,
+                                section: 'decision' as const,
+                                content: snapshots.decision_snapshot,
+                                empty: 'No decision payload available',
+                              }].map(({ label, section, content, empty }) => {
                               const open = isSectionExpanded(entry.id, section)
                               const displayContent = content?.trim()
                               const copied = isSectionCopied(entry.id, section)
+                              const showLoading = isLoadingEntry && !displayContent
                               
                               return (
                                 <div key={section} className="border border-border/60 rounded-md bg-background/60">
@@ -811,7 +871,12 @@ export default function AlphaArenaFeed({
                                       className="border-t border-border/40 bg-muted/40 px-3 py-3 text-xs text-muted-foreground"
                                       onClick={(event) => event.stopPropagation()}
                                     >
-                                      {displayContent ? (
+                                      {showLoading ? (
+                                        <div className="flex items-center gap-2 text-muted-foreground/70">
+                                          <Loader2 className="w-3 h-3 animate-spin" />
+                                          <span>Loading...</span>
+                                        </div>
+                                      ) : displayContent ? (
                                         <>
                                           <pre className="whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed text-foreground/90">
                                             {displayContent}
@@ -826,8 +891,8 @@ export default function AlphaArenaFeed({
                                                 }
                                               }}
                                               className={`px-3 py-1.5 text-[10px] font-medium rounded transition-all ${
-                                                copied 
-                                                  ? 'bg-emerald-500/20 text-emerald-600 border border-emerald-500/30' 
+                                                copied
+                                                  ? 'bg-emerald-500/20 text-emerald-600 border border-emerald-500/30'
                                                   : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/60'
                                               }`}
                                             >
@@ -835,7 +900,6 @@ export default function AlphaArenaFeed({
                                             </button>
                                           </div>
                                         </>
-
                                       ) : (
                                         <span className="text-muted-foreground/70">{empty}</span>
                                       )}
@@ -843,7 +907,8 @@ export default function AlphaArenaFeed({
                                   )}
                                 </div>
                               )
-                            })}
+                            })
+                            })()}
                           </div>
                         )}
                         <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground uppercase tracking-wide">

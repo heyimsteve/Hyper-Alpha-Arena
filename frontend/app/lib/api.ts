@@ -560,6 +560,19 @@ export async function getArenaModelChat(params?: { limit?: number; account_id?: 
   return response.json()
 }
 
+export interface ModelChatSnapshots {
+  id: number
+  prompt_snapshot?: string | null
+  reasoning_snapshot?: string | null
+  decision_snapshot?: string | null
+  error?: string
+}
+
+export async function getModelChatSnapshots(decisionId: number): Promise<ModelChatSnapshots> {
+  const response = await apiRequest(`/arena/model-chat/${decisionId}/snapshots`)
+  return response.json()
+}
+
 export interface ArenaPositionItem {
   id: number
   symbol: string
