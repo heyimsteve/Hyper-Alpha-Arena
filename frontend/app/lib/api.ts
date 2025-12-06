@@ -330,6 +330,15 @@ export async function deletePromptBinding(bindingId: number): Promise<void> {
   })
 }
 
+export interface VariablesReferenceResponse {
+  content: string
+}
+
+export async function getVariablesReference(): Promise<VariablesReferenceResponse> {
+  const response = await apiRequest('/prompts/variables-reference')
+  return response.json()
+}
+
 export interface PromptPreviewRequest {
   templateText?: string  // Optional: Use this template text directly (for preview before save)
   promptTemplateKey?: string  // Optional: Fallback to database template if templateText not provided
@@ -548,6 +557,19 @@ export async function getArenaModelChat(params?: { limit?: number; account_id?: 
   if (params?.before_time) search.append('before_time', params.before_time)
   const query = search.toString()
   const response = await apiRequest(`/arena/model-chat${query ? `?${query}` : ''}`)
+  return response.json()
+}
+
+export interface ModelChatSnapshots {
+  id: number
+  prompt_snapshot?: string | null
+  reasoning_snapshot?: string | null
+  decision_snapshot?: string | null
+  error?: string
+}
+
+export async function getModelChatSnapshots(decisionId: number): Promise<ModelChatSnapshots> {
+  const response = await apiRequest(`/arena/model-chat/${decisionId}/snapshots`)
   return response.json()
 }
 

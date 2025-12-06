@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'react-hot-toast'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import {
   getPromptTemplates,
   updatePromptTemplate,
@@ -10,6 +12,7 @@ import {
   copyPromptTemplate,
   deletePromptTemplate,
   updatePromptTemplateName,
+  getVariablesReference,
   PromptTemplate,
   PromptBinding,
   TradingAccount,
@@ -80,6 +83,11 @@ export default function PromptManager() {
 
   // Premium Modal
   const [premiumModalOpen, setPremiumModalOpen] = useState(false)
+
+  // Variables Reference Modal
+  const [variablesRefModalOpen, setVariablesRefModalOpen] = useState(false)
+  const [variablesRefContent, setVariablesRefContent] = useState<string>('')
+  const [variablesRefLoading, setVariablesRefLoading] = useState(false)
 
   // Auth context
   const { user, membership } = useAuth()
@@ -356,6 +364,22 @@ export default function PromptManager() {
     window.open('https://www.akooi.com/#pricing-section', '_blank')
   }
 
+  const handleOpenVariablesRef = async () => {
+    setVariablesRefModalOpen(true)
+    if (!variablesRefContent) {
+      setVariablesRefLoading(true)
+      try {
+        const data = await getVariablesReference()
+        setVariablesRefContent(data.content)
+      } catch (err) {
+        console.error(err)
+        toast.error('Failed to load variables reference')
+      } finally {
+        setVariablesRefLoading(false)
+      }
+    }
+  }
+
   useEffect(() => {
     if (selectedTemplate) {
       setTemplateDraft(selectedTemplate.templateText)
@@ -379,7 +403,16 @@ export default function PromptManager() {
           <Card className="flex-1 flex flex-col h-full overflow-hidden">
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle className="text-base">Prompt Template Editor</CardTitle>
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-base">Prompt Template Editor</CardTitle>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleOpenVariablesRef}
+                  >
+                    📖 Variables Guide
+                  </Button>
+                </div>
                 <div className="flex gap-2">
                   <Button
                     size="sm"
@@ -734,6 +767,100 @@ export default function PromptManager() {
         featureName="AI Strategy Prompt Generator"
         description="Let AI help you write professional trading strategy prompts with natural language conversation."
       />
+
+      {/* Variables Reference Modal */}
+      <Dialog open={variablesRefModalOpen} onOpenChange={setVariablesRefModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Strategy Variables Reference</DialogTitle>
+            <DialogDescription>
+              All available variables for prompt templates
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* AI Prompt Generation CTA */}
+          <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950/30 dark:to-pink-950/30 border border-purple-200 dark:border-purple-800 rounded-lg p-4 mb-4">
+            <div className="flex items-start gap-3">
+              <div className="text-2xl">✨</div>
+              <div className="flex-1 space-y-2">
+                <p className="text-sm font-medium text-foreground">
+                  If you're unsure how to use these variables or want a more sophisticated trading strategy, try the <span className="font-semibold text-purple-600 dark:text-purple-400">AI Prompt Generation</span> feature (requires Premium).
+                </p>
+                <div className="text-sm text-muted-foreground space-y-1">
+                  <p className="font-medium">The AI assistant will:</p>
+                  <ul className="list-disc list-inside space-y-0.5 ml-2">
+                    <li>Generate optimized prompts based on your trading style</li>
+                    <li>Intelligently select appropriate variables and indicators</li>
+                    <li>Provide professional risk management suggestions</li>
+                    <li>Support multi-turn conversations to refine your strategy</li>
+                  </ul>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setVariablesRefModalOpen(false)
+                    handleAiWriteClick()
+                  }}
+                  className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white border-0 shadow-md hover:shadow-lg transition-all mt-2"
+                >
+                  ✨ AI Write Strategy Prompt
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <ScrollArea className="flex-1 pr-4">
+            {variablesRefLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <span className="text-muted-foreground">Loading...</span>
+              </div>
+            ) : (
+              <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-code:text-primary prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-pre:bg-muted prose-hr:border-border">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    table: ({ children }) => (
+                      <div className="overflow-x-auto my-4">
+                        <table className="min-w-full border-collapse border border-border text-sm">
+                          {children}
+                        </table>
+                      </div>
+                    ),
+                    thead: ({ children }) => (
+                      <thead className="bg-muted">{children}</thead>
+                    ),
+                    th: ({ children }) => (
+                      <th className="border border-border px-3 py-2 text-left font-semibold">
+                        {children}
+                      </th>
+                    ),
+                    td: ({ children }) => (
+                      <td className="border border-border px-3 py-2">{children}</td>
+                    ),
+                    code: ({ children, className }) => {
+                      const isInline = !className
+                      return isInline ? (
+                        <code className="bg-muted text-primary px-1 py-0.5 rounded text-xs">
+                          {children}
+                        </code>
+                      ) : (
+                        <code className={className}>{children}</code>
+                      )
+                    },
+                  }}
+                >
+                  {variablesRefContent}
+                </ReactMarkdown>
+              </div>
+            )}
+          </ScrollArea>
+          <DialogFooter>
+            <Button onClick={() => setVariablesRefModalOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

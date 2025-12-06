@@ -574,3 +574,28 @@ def get_conversation_messages_api(
         raise HTTPException(status_code=404, detail="Conversation not found")
 
     return {"messages": messages}
+
+
+@router.get("/variables-reference")
+def get_variables_reference() -> dict:
+    """
+    Get the prompt variables reference document (Markdown format).
+    Used by frontend to display the strategy parameter guide.
+    """
+    import os
+
+    # Path to the reference document
+    doc_path = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)),
+        "config",
+        "PROMPT_VARIABLES_REFERENCE.md"
+    )
+
+    try:
+        with open(doc_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        return {"content": content}
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Reference document not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read document: {str(e)}")
